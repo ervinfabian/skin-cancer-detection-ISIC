@@ -4,21 +4,26 @@ import firebase_admin
 from firebase_admin import credentials, storage, firestore
 import io
 import uuid
+import joblib
+import kaggle
 
+
+# Loading of the model
+model = joblib.load()
 # Firebase setup
 cred = credentials.Certificate("serviceAccountKey.json")  # Replace with your Firebase service account key
 firebase_admin.initialize_app(
     cred, 
-    {"storageBucket": "<your-bucket-name>.appspot.com"}  # Replace with your bucket name
+    {"storageBucket": "gs://skin-cancer-detection-c0570.firebasestorage.app"}  # Replace with your bucket name
 )
 db = firestore.client()
 bucket = storage.bucket()
 
 # App title
-st.title("Photo Uploader with Firebase")
+st.title("Skin Cancer Detection")
 
 # Description
-st.write("Upload photos to save them to Firebase!")
+st.write("Please upload your photo of the skin deformation!")
 
 # File uploader
 uploaded_files = st.file_uploader("Choose photos to upload", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
@@ -58,3 +63,6 @@ if uploaded_files:
 
             st.success(f"{uploaded_file.name} has been saved to Firebase!")
             st.write(f"Access the photo [here]({blob.public_url}).")
+
+
+
