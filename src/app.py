@@ -6,7 +6,7 @@ import io
 import uuid
 import joblib
 import kaggle
-
+import 
 
 # Loading of the model
 model = joblib.load('src/model.pkl')
