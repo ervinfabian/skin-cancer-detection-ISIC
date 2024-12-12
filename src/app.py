@@ -9,7 +9,7 @@ import kaggle
 
 
 # Loading of the model
-model = joblib.load()
+model = joblib.load('src/model.pkl')
 # Firebase setup
 cred = credentials.Certificate("serviceAccountKey.json")  # Replace with your Firebase service account key
 firebase_admin.initialize_app(
