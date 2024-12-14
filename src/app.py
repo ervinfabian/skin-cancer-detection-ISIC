@@ -7,65 +7,74 @@ import uuid
 import joblib
 import kaggle
 import pickle
+from sklearn.base import BaseEstimator, TransformerMixin
+
+
+class SelectColumns(BaseEstimator, TransformerMixin):
+    def __init__(self, columns):
+        self.columns = columns
+    def fit(self, X, y=None):
+        return self
+    def transform(self, X):
+        return X[self.columns]
+
+def open_model():
+    
+    with open('src/model.pkl', 'rb') as file:
+        model = joblib.load(file)
+
+
+@st.cache_data
+def initialize_firebase():
+
+    if not firebase_admin._apps:
+        cred = credentials.Certificate("src/serviceAccountKey.json")  # Replace with your Firebase service account key
+        firebase_admin.initialize_app(
+            cred, 
+            {"storageBucket": "skin-cancer-detection-c0570.firebasestorage.app"}  # Replace with your bucket name
+        )
+
+# Initialize firebase
+initialize_firebase()
+
+
+
 
 
 # Loading of the model
-with open('src/model.pkl', 'rb') as file:
-    model = pickle.load(file)
-# model = joblib.load('src/model.pkl')
-# Firebase setup
-# cred = credentials.Certificate("serviceAccountKey.json")  # Replace with your Firebase service account key
-# firebase_admin.initialize_app(
-#     cred, 
-#     {"storageBucket": "gs://skin-cancer-detection-c0570.firebasestorage.app"}  # Replace with your bucket name
-# )
-# db = firestore.client()
-# bucket = storage.bucket()
+open_model()
 
-# # App title
-# st.title("Skin Cancer Detection")
+print("kivan a fasz")
 
-# # Description
-# st.write("Please upload your photo of the skin deformation!")
 
-# # File uploader
-# uploaded_files = st.file_uploader("Choose photos to upload", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+db = firestore.client()
+bucket = storage.bucket()
 
-# # Display and upload photos
-# if uploaded_files:
-#     st.write("### Uploaded Photos:")
-#     for uploaded_file in uploaded_files:
-#         # Open the uploaded file as an image
-#         image = Image.open(uploaded_file)
+# App title
+st.title("Skin Cancer Detection")
 
-#         # Display the image
-#         st.image(image, caption=f"Uploaded: {uploaded_file.name}", use_column_width=True)
+# Description
+st.write("Please upload your photo of the skin deformation!")
 
-#         # Upload to Firebase
-#         if st.button(f"Save {uploaded_file.name} to Firebase"):
-#             # Save image to an in-memory buffer
-#             buffer = io.BytesIO()
-#             image.save(buffer, format="JPEG")
-#             buffer.seek(0)
+# File uploader
+uploaded_file = st.file_uploader("Choose photo to upload", type=["jpg", "jpeg", "png"], accept_multiple_files=False)
 
-#             # Generate a unique filename
-#             unique_filename = f"{uuid.uuid4()}-{uploaded_file.name}"
+# Display and upload photos
+if uploaded_file is not None:
+    # Store in session state
+    st.session_state['uploaded_file'] = uploaded_file
+    st.write(f"File name: {uploaded_file.name}")
 
-#             # Upload to Firebase Storage
-#             blob = bucket.blob(unique_filename)
-#             blob.upload_from_file(buffer, content_type="image/jpeg")
-#             blob.make_public()  # Make the file publicly accessible
+    # Upload to Firebase
+    if st.button("Upload to Firebase"):
+        bucket = storage.bucket()
+        blob = bucket.blob(f"images/{uploaded_file.name}")
+        blob.upload_from_file(uploaded_file)
+        st.success("Photo uploaded successfully!")
 
-#             # Save metadata to Firestore
-#             doc_ref = db.collection("photos").document(unique_filename)
-#             doc_ref.set({
-#                 "filename": unique_filename,
-#                 "url": blob.public_url,
-#                 "uploaded_at": firestore.SERVER_TIMESTAMP,
-#             })
 
-#             st.success(f"{uploaded_file.name} has been saved to Firebase!")
-#             st.write(f"Access the photo [here]({blob.public_url}).")
+print("")
+print("miafasz")
 
 
 
