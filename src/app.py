@@ -8,6 +8,7 @@ import joblib
 import kaggle
 import pickle
 from sklearn.base import BaseEstimator, TransformerMixin
+import datetime
 
 
 class SelectColumns(BaseEstimator, TransformerMixin):
@@ -65,12 +66,33 @@ if uploaded_file is not None:
     st.session_state['uploaded_file'] = uploaded_file
     st.write(f"File name: {uploaded_file.name}")
 
+    file_id = str(uuid.uuid4())
+    user_name = f"{file_id}.jpg"
+    upload_time = datetime.datetime.now()
+    result = "valami"
+
     # Upload to Firebase
     if st.button("Upload to Firebase"):
-        bucket = storage.bucket()
-        blob = bucket.blob(f"images/{uploaded_file.name}")
-        blob.upload_from_file(uploaded_file)
-        st.success("Photo uploaded successfully!")
+        try:
+            # Upload file to Firebase Storage
+            bucket = storage.bucket()
+            blob = bucket.blob(f"images/{file_name}")
+            blob.upload_from_file(uploaded_file, content_type='image/jpeg')
+
+            # Save metadata to Firestore
+            doc_ref = db.collection("images").document(file_id)
+            doc_ref.set({
+                "file_id": file_id,
+                "user_name": user_name,
+                "upload_time": upload_time.strftime("%Y-%m-%d %H:%M:%S"),
+                "result": result,
+            })
+
+            st.success("Photo uploaded successfully!")
+            st.write(f"File ID: {file_id}")
+            st.write(f"Download URL: {blob.public_url}")
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
 
 
 print("")
