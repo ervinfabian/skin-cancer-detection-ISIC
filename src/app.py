@@ -9,6 +9,8 @@ import kaggle
 import pickle
 from sklearn.base import BaseEstimator, TransformerMixin
 import datetime
+import cv2
+import numpy as np
 
 
 class SelectColumns(BaseEstimator, TransformerMixin):
@@ -19,9 +21,7 @@ class SelectColumns(BaseEstimator, TransformerMixin):
     def transform(self, X):
         return X[self.columns]
 
-def open_model():
-    
-    with open('src/model.pkl', 'rb') as file:
+with open('src/model.pkl', 'rb') as file:
         model = joblib.load(file)
 
 
@@ -42,10 +42,9 @@ initialize_firebase()
 
 
 
-# Loading of the model
-open_model()
 
-print("kivan a fasz")
+
+
 
 
 db = firestore.client()
@@ -71,6 +70,11 @@ if uploaded_file is not None:
     upload_time = datetime.datetime.now()
     result = "valami"
 
+    # estimating
+    image = cv2.imdecode(np.fromstring(uploaded_file.read(), np.uint8), 1)
+    # st.write(model.predict_proba(uploaded_file))
+    st.image(image, caption="Uploaded Image", use_container_width=True)
+    st.write(model.predict_proba(image))
     # Upload to Firebase
     if st.button("Upload to Firebase"):
         try:
@@ -95,8 +99,6 @@ if uploaded_file is not None:
             st.error(f"An error occurred: {e}")
 
 
-print("")
-print("miafasz")
 
 
 
