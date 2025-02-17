@@ -85,14 +85,25 @@ if uploaded_file is not None:
     image = cv2.imdecode(np.fromstring(uploaded_file.read(), np.uint8), 1)
     image = cv2.resize(image, (64, 64))
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    print(image)
+    print("image volt")
     images.append(image)
+    print(images)
+    print("images volt")
+
     X_ = np.array(images)
+    print(X_)
+    print("X_ volt")
     X_test = X_.reshape(X_.shape[0], -1)
-    st.write(model.predict(X_test))
+    print(X_test)
+    print("X_test volt")
+    if model.predict(X_test) == 0:
+        st.write("The lesion is NOT malignant! :D")
+    else:
+        st.write("The lesion is malignant!")
 
     # st.write(model.predict_proba(uploaded_file))
     st.image(image, caption="Uploaded Image", use_container_width=True)
-    st.write(model.predict_proba(image))
     # Upload to Firebase
     if st.button("Upload to Firebase"):
         try:
