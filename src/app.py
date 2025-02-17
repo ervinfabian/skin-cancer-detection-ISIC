@@ -10,18 +10,28 @@ import pickle
 from sklearn.base import BaseEstimator, TransformerMixin
 import datetime
 import cv2
+import pandas as pd
 import numpy as np
+import os
+from tqdm import tqdm
+from sklearn.model_selection import GridSearchCV
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report
+import h5py
+from io import BytesIO
 
 
-class SelectColumns(BaseEstimator, TransformerMixin):
-    def __init__(self, columns):
-        self.columns = columns
-    def fit(self, X, y=None):
-        return self
-    def transform(self, X):
-        return X[self.columns]
 
-with open('src/model.pkl', 'rb') as file:
+# class SelectColumns(BaseEstimator, TransformerMixin):
+#     def __init__(self, columns):
+#         self.columns = columns
+#     def fit(self, X, y=None):
+#         return self
+#     def transform(self, X):
+#         return X[self.columns]
+
+with open('src/model2.pkl', 'rb') as file:
         model = joblib.load(file)
 
 
@@ -71,7 +81,15 @@ if uploaded_file is not None:
     result = "valami"
 
     # estimating
+    images = []
     image = cv2.imdecode(np.fromstring(uploaded_file.read(), np.uint8), 1)
+    image = cv2.resize(image, (64, 64))
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    images.append(image)
+    X_ = np.array(images)
+    X_test = X_.reshape(X_.shape[0], -1)
+    st.write(model.predict(X_test))
+
     # st.write(model.predict_proba(uploaded_file))
     st.image(image, caption="Uploaded Image", use_container_width=True)
     st.write(model.predict_proba(image))
