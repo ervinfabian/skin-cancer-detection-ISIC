@@ -165,6 +165,20 @@ cython_debug/
 
 serviceAccountKey.json
 
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.toc
+*.synctex.gz
+*.bbl
+*.blg
+*.qlmat
+*.log
+*.dvi
+*.lof
+*.loa
+.directory
 
 
 
