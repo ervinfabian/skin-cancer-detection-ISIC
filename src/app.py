@@ -1,18 +1,11 @@
 import streamlit as st
-from PIL import Image
+import requests
 import firebase_admin
 from firebase_admin import credentials, storage, firestore
 import io
-import uuid
-import joblib
-import kaggle
-import pickle
 from sklearn.base import BaseEstimator, TransformerMixin
-import datetime
-import cv2
 import pandas as pd
 import numpy as np
-import os
 from tqdm import tqdm
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
@@ -20,20 +13,15 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 import h5py
 from io import BytesIO
+from PIL import Image
+import io
 
 
 
-# class SelectColumns(BaseEstimator, TransformerMixin):
-#     def __init__(self, columns):
-#         self.columns = columns
-#     def fit(self, X, y=None):
-#         return self
-#     def transform(self, X):
-#         return X[self.columns]
+# with open('src/model2.pkl', 'rb') as file:
+        # model = joblib.load(file)
 
-with open('src/model2.pkl', 'rb') as file:
-        model = joblib.load(file)
-
+API_URL = "http://localhost:8000/"
 
 @st.cache_data
 def initialize_firebase():
@@ -48,15 +36,6 @@ def initialize_firebase():
 # Initialize firebase
 initialize_firebase()
 
-
-
-
-
-
-
-
-
-
 db = firestore.client()
 bucket = storage.bucket()
 
@@ -64,46 +43,36 @@ bucket = storage.bucket()
 st.title("Skin Cancer Detection")
 
 # Description
-st.write("Please upload your photo of the skin deformation!")
+st.header("Please upload your photo of the skin deformation!")
 
 # File uploader
 uploaded_file = st.file_uploader("Choose photo to upload", type=["jpg", "jpeg", "png"], accept_multiple_files=False)
+print(uploaded_file)
 
 # Display and upload photos
 if uploaded_file is not None:
     # Store in session state
     st.session_state['uploaded_file'] = uploaded_file
-    st.write(f"File name: {uploaded_file.name}")
+    # st.write(f"File name: {uploaded_file.name}")
 
-    file_id = str(uuid.uuid4())
-    user_name = f"{file_id}.jpg"
-    upload_time = datetime.datetime.now()
-    result = "valami"
-
-    # estimating
-    images = []
-    image = cv2.imdecode(np.fromstring(uploaded_file.read(), np.uint8), 1)
-    image = cv2.resize(image, (64, 64))
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    print(image)
-    print("image volt")
-    images.append(image)
-    print(images)
-    print("images volt")
-
-    X_ = np.array(images)
-    print(X_)
-    print("X_ volt")
-    X_test = X_.reshape(X_.shape[0], -1)
-    print(X_test)
-    print("X_test volt")
-    if model.predict(X_test) == 0:
-        st.write("The lesion is NOT malignant! :D")
+    image = Image.open(io.BytesIO(uploaded_file.read()))
+    # image = image.resize((64,64))
+    st.image(image, caption="Uploaded Image", use_container_width=False)
+    response = requests.post(API_URL + "predict", data=uploaded_file.getvalue())
+    
+    # the interpretation of the result
+    st.header("The result")
+    if response.status_code == 200:
+        prediction = response.json()["prediction"]
+        st.success(f"Prediction: {prediction}")
     else:
-        st.write("The lesion is malignant!")
+        st.error(f"Error: {response.text}")
+
+    
+
 
     # st.write(model.predict_proba(uploaded_file))
-    st.image(image, caption="Uploaded Image", use_container_width=True)
+    # st.image(image, caption="Uploaded Image", use_container_width=True)
     # Upload to Firebase
     if st.button("Upload to Firebase"):
         try:
