@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/values/colors.xml — DermAI dark palette (mirrors web app CSS variables) -->
+<resources>
+    <color name="bg_primary">#0F1117</color>
+    <color name="bg_surface">#1A1D27</color>
+    <color name="border">#2A2D3A</color>
+    <color name="accent">#6C8EF5</color>
+    <color name="accent_dim">#3A4A8A</color>
+    <color name="text_primary">#E8EAF0</color>
+    <color name="text_dim">#7A7F99</color>
+    <color name="user_bubble">#1E3A5F</color>
+    <color name="benign">#4CAF82</color>
+    <color name="malignant">#E05C6E</color>
+</resources>

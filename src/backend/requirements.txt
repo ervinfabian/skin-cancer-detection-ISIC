@@ -1,0 +1,9 @@
+# requirements.txt — Web app (Flask) dependencies
+#
+# Install with:  pip install -r requirements.txt
+#
+# NOTE: torch/torchvision/Pillow are no longer needed here —
+# the model now runs remotely on Google Colab via Cloudflare tunnel.
+
+flask>=3.0.0              # Web framework
+google-genai>=1.0.0       # Gemini API (new SDK)

@@ -180,6 +180,73 @@ serviceAccountKey.json
 *.loa
 .directory
 
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env
+
+# ── Environment variables / secrets ──────────────────────────────────────────
+.env
+.env.*
+src/backend/firebase_credentials.json
+*.pem
+*.key
+
+# ── Model weights (large files — store in Drive/S3, not git) ─────────────────
+*.pth
+*.pt
+*.h5
+*.ckpt
+*.bin
+
+# ── Flask / FastAPI ───────────────────────────────────────────────────────────
+instance/
+.webassets-cache
+flask_session/
+
+# ── Android ───────────────────────────────────────────────────────────────────
+src/android/.gradle/
+src/android/local.properties
+src/android/app/build/
+src/android/build/
+src/android/captures/
+src/android/.idea/
+src/android/**/*.iml
+src/android/app/google-services.json
+
+# ── Android keystore (never commit signing keys) ──────────────────────────────
+*.jks
+*.keystore
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
 
 
 

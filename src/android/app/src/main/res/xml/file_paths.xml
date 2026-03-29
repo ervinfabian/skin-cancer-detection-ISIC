@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  res/xml/file_paths.xml
+  =======================
+  Declares which directories FileProvider can share URIs for.
+  Required for camera capture on Android 7+ — the camera app needs
+  a content:// URI (not a file:// URI) to write the photo into our cache.
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- cacheDir — where we create the temp photo file before capture -->
+    <cache-path name="dermai_captures" path="." />
+</paths>

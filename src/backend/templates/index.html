@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DermAI — Skin Lesion Assistant</title>
+
+  <!--
+    index.html — Chat UI
+    =====================
+    Structure:
+      - Header with title
+      - #chat-window: scrollable message history
+      - #input-area: text input, image upload button, send button
+      - SSE streaming: messages are appended token-by-token from /chat endpoint
+    
+    No external JS frameworks — vanilla JS only, keeping it minimal.
+    Styling via CSS variables for easy theming.
+  -->
+
+  <style>
+    /* ── CSS Variables (edit these to retheme) ─────────────────────────── */
+    :root {
+      --bg:          #0f1117;
+      --surface:     #1a1d27;
+      --border:      #2a2d3a;
+      --accent:      #6c8ef5;
+      --accent-dim:  #3a4a8a;
+      --text:        #e8eaf0;
+      --text-dim:    #7a7f99;
+      --user-bg:     #1e3a5f;
+      --bot-bg:      #1a1d27;
+      --danger:      #e05c6e;
+      --success:     #4caf82;
+      --radius:      12px;
+      --font:        'Courier New', monospace;
+    }
+
+    /* ── Reset & base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ────────────────────────────────────────────────────────── */
+    header {
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    header .logo {
+      /* Simple SVG pulse dot as logo */
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 0 var(--accent);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(108,142,245,0.6); }
+      70%  { box-shadow: 0 0 0 8px rgba(108,142,245,0); }
+      100% { box-shadow: 0 0 0 0 rgba(108,142,245,0); }
+    }
+
+    header h1 {
+      font-size: 1rem;
+      font-weight: normal;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    header .subtitle {
+      margin-left: auto;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Chat window ───────────────────────────────────────────────────── */
+    #chat-window {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    /* Scrollbar styling */
+    #chat-window::-webkit-scrollbar { width: 4px; }
+    #chat-window::-webkit-scrollbar-track { background: transparent; }
+    #chat-window::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ── Message bubbles ───────────────────────────────────────────────── */
+    .message {
+      display: flex;
+      flex-direction: column;
+      max-width: 720px;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+    .message.user  { align-self: flex-end; align-items: flex-end; }
+    .message.assistant { align-self: flex-start; align-items: flex-start; }
+
+    .message .role-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-bottom: 5px;
+      text-transform: uppercase;
+    }
+
+    .message .bubble {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      line-height: 1.65;
+      font-size: 0.88rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .message.user      .bubble { background: var(--user-bg); border: 1px solid var(--accent-dim); }
+    .message.assistant .bubble { background: var(--bot-bg);  border: 1px solid var(--border); }
+
+    /* Image preview inside a user message */
+    .message .image-preview {
+      max-width: 220px;
+      border-radius: 8px;
+      margin-top: 8px;
+      border: 1px solid var(--border);
+    }
+
+    /* Typing cursor for streaming */
+    .cursor::after {
+      content: '▋';
+      color: var(--accent);
+      animation: blink 0.8s step-end infinite;
+    }
+
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* Classification badge shown below a user message */
+    .classification-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+    }
+
+    .classification-badge.benign   { background: rgba(76,175,130,0.15); border: 1px solid var(--success); color: var(--success); }
+    .classification-badge.malignant{ background: rgba(224,92,110,0.15); border: 1px solid var(--danger);  color: var(--danger); }
+    .classification-badge.unknown  { background: rgba(122,127,153,0.15); border: 1px solid var(--text-dim); color: var(--text-dim); }
+
+    /* ── Input area ────────────────────────────────────────────────────── */
+    #input-area {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    /* Image preview strip */
+    #image-preview-strip {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: rgba(108,142,245,0.07);
+      border: 1px dashed var(--accent-dim);
+      border-radius: 8px;
+      font-size: 0.78rem;
+      color: var(--accent);
+    }
+
+    #image-preview-strip img {
+      height: 48px;
+      border-radius: 6px;
+      object-fit: cover;
+    }
+
+    #image-preview-strip .remove-img {
+      margin-left: auto;
+      cursor: pointer;
+      color: var(--danger);
+      background: none;
+      border: none;
+      font-size: 1rem;
+      padding: 0 4px;
+    }
+
+    /* Row: text input + buttons */
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    #message-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.88rem;
+      resize: none;
+      min-height: 42px;
+      max-height: 140px;
+      line-height: 1.5;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #message-input:focus { border-color: var(--accent); }
+
+    /* Upload button — hidden file input triggered by a styled label */
+    #upload-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px; height: 42px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      cursor: pointer;
+      color: var(--text-dim);
+      font-size: 1.1rem;
+      transition: border-color 0.2s, color 0.2s;
+      flex-shrink: 0;
+    }
+
+    #upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    #file-input { display: none; }
+
+    /* Send button */
+    #send-btn {
+      height: 42px;
+      padding: 0 20px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--font);
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+      flex-shrink: 0;
+    }
+
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Disclaimer */
+    .disclaimer {
+      text-align: center;
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header>
+    <div class="logo"></div>
+    <h1>DermAI</h1>
+    <span class="subtitle">Skin Lesion Analysis · Powered by Gemini Flash</span>
+  </header>
+
+  <!-- ── Chat window ─────────────────────────────────────────────────────── -->
+  <div id="chat-window">
+    <!-- Welcome message injected by JS on load -->
+  </div>
+
+  <!-- ── Input area ──────────────────────────────────────────────────────── -->
+  <div id="input-area">
+
+    <!-- Image preview strip (shown when user attaches an image) -->
+    <div id="image-preview-strip">
+      <img id="preview-thumb" src="" alt="preview" />
+      <span id="preview-name"></span>
+      <button class="remove-img" id="remove-img-btn" title="Remove image">✕</button>
+    </div>
+
+    <div class="input-row">
+      <!-- Image upload button -->
+      <label id="upload-btn" for="file-input" title="Attach skin lesion image">🔬</label>
+      <input type="file" id="file-input" accept="image/*" />
+
+      <!-- Text input (auto-grows with content) -->
+      <textarea
+        id="message-input"
+        placeholder="Describe your concern or attach a lesion image…"
+        rows="1"
+      ></textarea>
+
+      <!-- Send button -->
+      <button id="send-btn">Send</button>
+    </div>
+
+    <p class="disclaimer">
+      ⚠ For informational purposes only — not a substitute for professional medical advice.
+    </p>
+  </div>
+
+  <script>
+    /*
+     * Chat logic
+     * ==========
+     * State:
+     *   history[]     — array of {role, text} for all prior turns
+     *   pendingImage  — File object of the attached image (or null)
+     *   isStreaming   — whether SSE is currently active
+     *
+     * Flow per message:
+     *   1. User types message and/or attaches image → clicks Send
+     *   2. appendMessage("user", ...) adds their bubble
+     *   3. POST /chat (multipart: message + history JSON + optional image)
+     *   4. EventSource reads SSE tokens → appends to assistant bubble in real time
+     *   5. On [DONE], finalize assistant turn in history[]
+     */
+
+    const chatWindow   = document.getElementById("chat-window");
+    const messageInput = document.getElementById("message-input");
+    const sendBtn      = document.getElementById("send-btn");
+    const fileInput    = document.getElementById("file-input");
+    const previewStrip = document.getElementById("image-preview-strip");
+    const previewThumb = document.getElementById("preview-thumb");
+    const previewName  = document.getElementById("preview-name");
+    const removeImgBtn = document.getElementById("remove-img-btn");
+
+    let history      = [];   // [{role: "user"|"assistant", text: "..."}]
+    let pendingImage = null; // File | null
+    let isStreaming  = false;
+
+    // ── Welcome message ────────────────────────────────────────────────────
+    appendMessage("assistant",
+      "Hello! I'm DermAI, your skin lesion analysis assistant.\n\n" +
+      "You can describe a lesion or attach an image for AI-assisted classification. " +
+      "I'll provide observations and guidance — please remember to consult a dermatologist for a definitive diagnosis."
+    );
+
+    // ── Auto-grow textarea ─────────────────────────────────────────────────
+    messageInput.addEventListener("input", () => {
+      messageInput.style.height = "auto";
+      messageInput.style.height = messageInput.scrollHeight + "px";
+    });
+
+    // Send on Enter (Shift+Enter = newline)
+    messageInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    sendBtn.addEventListener("click", sendMessage);
+
+    // ── Image attachment ───────────────────────────────────────────────────
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      pendingImage = file;
+
+      // Show preview strip
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewThumb.src = e.target.result;
+        previewName.textContent = file.name;
+        previewStrip.style.display = "flex";
+      };
+      reader.readAsDataURL(file);
+    });
+
+    removeImgBtn.addEventListener("click", clearImage);
+
+    function clearImage() {
+      pendingImage = null;
+      fileInput.value = "";
+      previewStrip.style.display = "none";
+      previewThumb.src = "";
+      previewName.textContent = "";
+    }
+
+    // ── Main send function ─────────────────────────────────────────────────
+    async function sendMessage() {
+      if (isStreaming) return;
+
+      const text = messageInput.value.trim();
+      if (!text && !pendingImage) return;
+
+      // Disable input while streaming
+      isStreaming = true;
+      sendBtn.disabled = true;
+
+      // Show user message bubble
+      const displayText = text || "(image attached)";
+      appendMessage("user", displayText, pendingImage);
+
+      // Save to history (text only — images handled server-side)
+      history.push({ role: "user", text: displayText });
+
+      // Clear input
+      messageInput.value = "";
+      messageInput.style.height = "auto";
+
+      // Build multipart form data
+      const formData = new FormData();
+      formData.append("message", text);
+      formData.append("history", JSON.stringify(history.slice(0, -1))); // exclude current turn
+      if (pendingImage) {
+        formData.append("image", pendingImage);
+      }
+
+      clearImage();
+
+      // Create the assistant bubble (will be filled by SSE tokens)
+      const assistantBubble = appendMessage("assistant", "", null, true);
+      let fullResponse = "";
+
+      try {
+        // POST to /chat — returns SSE stream
+        const response = await fetch("/chat", { method: "POST", body: formData });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        // Read SSE stream
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop(); // keep incomplete line in buffer
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const payload = line.slice(6).trim();
+
+            if (payload === "[DONE]") {
+              // Remove cursor, finalize
+              assistantBubble.classList.remove("cursor");
+              break;
+            }
+
+            const data = JSON.parse(payload);
+            if (data.error) {
+              assistantBubble.textContent = `Error: ${data.error}`;
+              assistantBubble.classList.remove("cursor");
+              break;
+            }
+
+            // Append streamed token
+            fullResponse += data.token;
+            assistantBubble.textContent = fullResponse;
+            scrollToBottom();
+          }
+        }
+      } catch (err) {
+        assistantBubble.textContent = `Connection error: ${err.message}`;
+        assistantBubble.classList.remove("cursor");
+      }
+
+      // Save assistant turn to history
+      history.push({ role: "assistant", text: fullResponse });
+
+      isStreaming = false;
+      sendBtn.disabled = false;
+      messageInput.focus();
+    }
+
+    // ── DOM helpers ────────────────────────────────────────────────────────
+
+    /**
+     * Append a message bubble to the chat window.
+     * @param {string} role        — "user" or "assistant"
+     * @param {string} text        — message text
+     * @param {File|null} image    — optional image to preview
+     * @param {boolean} streaming  — add blinking cursor for streaming
+     * @returns {HTMLElement}      — the .bubble element (for live updates)
+     */
+    function appendMessage(role, text, image = null, streaming = false) {
+      const wrapper = document.createElement("div");
+      wrapper.className = `message ${role}`;
+
+      const label = document.createElement("div");
+      label.className = "role-label";
+      label.textContent = role === "user" ? "You" : "DermAI";
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble" + (streaming ? " cursor" : "");
+      bubble.textContent = text;
+
+      wrapper.appendChild(label);
+      wrapper.appendChild(bubble);
+
+      // Attach image thumbnail if provided
+      if (image) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = document.createElement("img");
+          img.src = e.target.result;
+          img.className = "image-preview";
+          wrapper.appendChild(img);
+        };
+        reader.readAsDataURL(image);
+      }
+
+      chatWindow.appendChild(wrapper);
+      scrollToBottom();
+      return bubble;
+    }
+
+    function scrollToBottom() {
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+  </script>
+</body>
+</html>

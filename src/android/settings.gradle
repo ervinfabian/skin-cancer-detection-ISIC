@@ -1,0 +1,26 @@
+// settings.gradle
+// ================
+// Central place for all repository declarations in Gradle 7+.
+// pluginManagement     — where to find Gradle plugins
+// dependencyResolutionManagement — where to find library dependencies
+
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    // PREFER_SETTINGS: repositories here take priority but project-level ones are still allowed.
+    // (avoids the "was added by build file" error while staying compatible)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "DermAI"
+include ':app'
