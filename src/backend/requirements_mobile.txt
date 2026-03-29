@@ -1,0 +1,10 @@
+# requirements_mobile.txt — FastAPI mobile backend dependencies
+#
+# Install with:  pip install -r requirements_mobile.txt
+
+fastapi>=0.110.0          # Mobile-optimized API framework
+uvicorn[standard]>=0.29.0 # ASGI server
+python-multipart>=0.0.9   # Required for FastAPI file uploads
+google-genai>=1.0.0       # Gemini API (new SDK)
+firebase-admin>=6.5.0     # Firebase Storage + Firestore
+pydantic>=2.0.0           # Request/response models

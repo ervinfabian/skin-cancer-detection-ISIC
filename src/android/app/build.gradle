@@ -1,0 +1,79 @@
+// app/build.gradle
+// =================
+// Android app module build configuration.
+// Includes all dependencies for Firebase, networking, image loading, and SSE streaming.
+
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    // Firebase plugin (add google-services.json from Firebase Console to app/)
+    id 'com.google.gms.google-services'
+}
+
+android {
+    namespace 'com.dermai.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.dermai.app"
+        minSdk 26                    // Android 8.0+ (for OkHttp SSE support)
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+
+        // Your FastAPI backend URL — change for production
+        buildConfigField "String", "API_BASE_URL", "\"http://10.0.2.2:8000\""
+        // 10.0.2.2 = localhost from Android emulator
+        // Use your machine's LAN IP (e.g. 192.168.x.x) for physical device
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    buildFeatures {
+        viewBinding true       // Type-safe view access (no findViewById)
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+}
+
+dependencies {
+    // ── Android core ──────────────────────────────────────────────────────
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'androidx.activity:activity-ktx:1.8.2'
+
+    // ── Networking: OkHttp (SSE streaming) + Retrofit ────────────────────
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    implementation 'com.google.code.gson:gson:2.10.1'
+
+    // ── Image loading (Glide) ─────────────────────────────────────────────
+    implementation 'com.github.bumptech.glide:glide:4.16.0'
+
+    // ── Firebase ─────────────────────────────────────────────────────────
+    implementation platform('com.google.firebase:firebase-bom:32.7.0')
+    implementation 'com.google.firebase:firebase-storage-ktx'    // image uploads
+    implementation 'com.google.firebase:firebase-firestore-ktx'  // session storage
+
+    // ── Coroutines ────────────────────────────────────────────────────────
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3'
+}

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- item_message_user.xml — right-aligned user bubble -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="end"
+    android:paddingVertical="4dp"
+    android:paddingHorizontal="8dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="YOU"
+        android:textSize="9sp"
+        android:textColor="@color/text_dim"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.1"
+        android:layout_marginBottom="3dp" />
+
+    <TextView
+        android:id="@+id/tv_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxWidth="280dp"
+        android:background="@drawable/bubble_user"
+        android:padding="12dp"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        android:fontFamily="monospace"
+        android:lineSpacingMultiplier="1.5" />
+
+    <ImageView
+        android:id="@+id/iv_image"
+        android:layout_width="160dp"
+        android:layout_height="120dp"
+        android:scaleType="centerCrop"
+        android:layout_marginTop="6dp"
+        android:background="@drawable/rounded_corners"
+        android:visibility="gone" />
+
+</LinearLayout>

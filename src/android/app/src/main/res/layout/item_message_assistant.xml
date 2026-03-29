@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- item_message_assistant.xml — left-aligned DermAI bubble -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="start"
+    android:paddingVertical="4dp"
+    android:paddingHorizontal="8dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="DERMAI"
+        android:textSize="9sp"
+        android:textColor="@color/accent"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.1"
+        android:layout_marginBottom="3dp" />
+
+    <TextView
+        android:id="@+id/tv_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxWidth="280dp"
+        android:background="@drawable/bubble_assistant"
+        android:padding="12dp"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        android:fontFamily="monospace"
+        android:lineSpacingMultiplier="1.5" />
+
+</LinearLayout>

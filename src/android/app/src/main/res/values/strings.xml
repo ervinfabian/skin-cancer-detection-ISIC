@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DermAI</string>
+    <string name="hint_message">Describe your concern…</string>
+    <string name="btn_send">SEND</string>
+    <string name="label_you">YOU</string>
+    <string name="label_dermai">DERMAI</string>
+    <string name="history_title">Past Sessions</string>
+    <string name="empty_history">No sessions yet.</string>
+    <string name="image_ready">Image ready to send</string>
+    <string name="disclaimer">For informational purposes only — not a substitute for professional medical advice.</string>
+</resources>
