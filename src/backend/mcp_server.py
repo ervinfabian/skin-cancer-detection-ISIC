@@ -38,6 +38,15 @@ import json
 import logging
 import urllib.request
 import urllib.error
+# ── CHANGED BY CLAUDE (2026-03-30) ───────────────────────────────────────────
+# ORIGINAL: no ssl/certifi imports
+# ADDED: ssl + certifi to fix SSL: CERTIFICATE_VERIFY_FAILED on macOS when
+#        connecting to Cloudflare tunnel HTTPS URLs. Python (python.org install)
+#        ships without system root certs, so HTTPS verification fails.
+#        Requires: pip install certifi
+# ─────────────────────────────────────────────────────────────────────────────
+import ssl
+import certifi
 
 # ── Logging (to stderr so it doesn't pollute the MCP stdio channel) ──────────
 logging.basicConfig(stream=sys.stderr, level=logging.INFO,
@@ -92,17 +101,35 @@ def classify_lesion(image_base64: str) -> dict:
     # Build the JSON payload — matches what your Colab Flask app expects
     payload = json.dumps({"image_base64": image_base64}).encode("utf-8")
 
+    # ── CHANGED BY CLAUDE (2026-03-30) ───────────────────────────────────────
+    # ORIGINAL headers had only "Content-Type": "application/json"
+    # PROBLEM: Cloudflare's free tunnel (trycloudflare.com) runs a Browser
+    #          Integrity Check and blocks requests with no User-Agent, returning
+    #          an HTML challenge page instead of forwarding to Flask. The MCP
+    #          server then crashes trying to parse that HTML as JSON.
+    # FIX:     Added a browser-like User-Agent so Cloudflare lets the request
+    #          through to the Colab Flask server.
+    # ─────────────────────────────────────────────────────────────────────────
     req = urllib.request.Request(
         url=CLASSIFY_ENDPOINT,
         data=payload,
         headers={
             "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (compatible; DermAI-MCP/1.0)",
         },
         method="POST",
     )
 
+    # ── CHANGED BY CLAUDE (2026-03-30) ───────────────────────────────────────
+    # ORIGINAL: urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT)
+    # PROBLEM:  SSL: CERTIFICATE_VERIFY_FAILED — Python on macOS can't verify
+    #           Cloudflare's HTTPS cert because system root certs are missing.
+    # FIX:      Pass a certifi-backed SSL context so Python uses the correct
+    #           certificate bundle regardless of the OS/Python install method.
+    # ─────────────────────────────────────────────────────────────────────────
+    ssl_ctx = ssl.create_default_context(cafile=certifi.where())
     try:
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as response:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT, context=ssl_ctx) as response:
             raw = response.read().decode("utf-8")
             result = json.loads(raw)
 
