@@ -90,6 +90,21 @@
       letter-spacing: 0.05em;
     }
 
+    /* ── CHANGED BY CLAUDE (2026-03-30) ──────────────────────────────────────
+       ORIGINAL: no save indicator existed
+       ADDED:    small pill in the header that briefly shows "saved" after each
+                 message is persisted to Firebase
+    ─────────────────────────────────────────────────────────────────────────── */
+    #save-indicator {
+      font-size: 0.65rem;
+      letter-spacing: 0.06em;
+      color: var(--success);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      margin-left: 12px;
+    }
+    #save-indicator.visible { opacity: 1; }
+
     /* ── Chat window ───────────────────────────────────────────────────── */
     #chat-window {
       flex: 1;
@@ -293,6 +308,8 @@
     <div class="logo"></div>
     <h1>DermAI</h1>
     <span class="subtitle">Skin Lesion Analysis · Powered by Gemini Flash</span>
+    <!-- CHANGED BY CLAUDE (2026-03-30): added save indicator pill -->
+    <span id="save-indicator">✓ saved</span>
   </header>
 
   <!-- ── Chat window ─────────────────────────────────────────────────────── -->
@@ -360,6 +377,10 @@
     let history      = [];   // [{role: "user"|"assistant", text: "..."}]
     let pendingImage = null; // File | null
     let isStreaming  = false;
+    // CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: no session tracking
+    // ADDED: sessionId persists across messages so all turns in one conversation
+    //        link to the same Firestore document. Null until server assigns one.
+    let sessionId    = null;
 
     // ── Welcome message ────────────────────────────────────────────────────
     appendMessage("assistant",
@@ -439,6 +460,10 @@
       if (pendingImage) {
         formData.append("image", pendingImage);
       }
+      // CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: session_id was never sent
+      // ADDED: send current sessionId so the server links follow-up messages to
+      //        the same Firestore document (empty string = server creates new one)
+      formData.append("session_id", sessionId || "");
 
       clearImage();
 
@@ -472,6 +497,8 @@
             if (payload === "[DONE]") {
               // Remove cursor, finalize
               assistantBubble.classList.remove("cursor");
+              // CHANGED BY CLAUDE (2026-03-30): flash the "saved" indicator
+              showSaveIndicator();
               break;
             }
 
@@ -480,6 +507,14 @@
               assistantBubble.textContent = `Error: ${data.error}`;
               assistantBubble.classList.remove("cursor");
               break;
+            }
+
+            // CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: every event was a token
+            // ADDED: first event is a meta payload with session_id + image_url.
+            //        Capture session_id so follow-up messages link to same session.
+            if (data.session_id && !data.token) {
+              sessionId = data.session_id;
+              continue; // meta event — not a token, don't render it
             }
 
             // Append streamed token
@@ -545,6 +580,14 @@
 
     function scrollToBottom() {
       chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    // CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: no save feedback
+    // ADDED: briefly shows "✓ saved" in the header after each completed message
+    function showSaveIndicator() {
+      const indicator = document.getElementById("save-indicator");
+      indicator.classList.add("visible");
+      setTimeout(() => indicator.classList.remove("visible"), 2000);
     }
   </script>
 </body>
