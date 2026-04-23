@@ -28,6 +28,7 @@
         android:textColor="@color/text_primary"
         android:textSize="13sp"
         android:fontFamily="monospace"
-        android:lineSpacingMultiplier="1.5" />
+        android:lineSpacingMultiplier="1.5"
+        android:textIsSelectable="true" />
 
 </LinearLayout>

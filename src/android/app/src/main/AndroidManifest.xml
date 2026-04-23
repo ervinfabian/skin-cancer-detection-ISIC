@@ -41,6 +41,11 @@
             android:name=".ui.HistoryActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".ui.CameraActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

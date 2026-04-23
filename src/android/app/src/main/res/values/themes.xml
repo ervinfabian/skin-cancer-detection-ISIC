@@ -3,6 +3,8 @@
     <!-- NoActionBar variant — required when using a custom Toolbar in the layout.
          DarkActionBar would provide a second action bar and crash with IllegalStateException. -->
     <style name="Theme.DermAI" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
         <item name="colorPrimary">@color/accent</item>
         <item name="colorPrimaryVariant">@color/accent_dim</item>
         <item name="colorOnPrimary">@color/bg_primary</item>
