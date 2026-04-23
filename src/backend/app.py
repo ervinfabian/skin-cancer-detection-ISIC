@@ -291,9 +291,60 @@ def chat():
     # CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: image bytes were read and used
     # only for MCP classification, then discarded. ADDED: upload to Firebase
     # Storage first so the image is persisted before classification begins.
+    REJECTION_MESSAGES = {
+        "NOT_SKIN":       ("The uploaded image doesn't appear to show a skin lesion or dermatological finding. "
+                           "Please upload a close-up photo of the specific skin area you'd like analyzed — "
+                           "such as a mole, rash, or other skin change."),
+        "TOO_FAR":        ("The lesion appears too far away to analyze accurately. "
+                           "Please hold the camera 5–10 cm from the skin and retake the photo so the lesion fills most of the frame."),
+        "MULTIPLE":       ("The image contains multiple lesions. "
+                           "Please upload a separate photo focusing on a single lesion at a time for accurate analysis."),
+        "BLURRY":         ("The image is too blurry or out of focus for reliable analysis. "
+                           "Please retake the photo — use macro mode and keep the camera steady."),
+        "NOT_ASSESSABLE": ("The image quality is insufficient for analysis (e.g. poor lighting, obstruction, or motion blur). "
+                           "Please retake the photo in good lighting, close up, and in focus."),
+    }
+
     image_bytes = None
     if image_file:
         image_bytes = image_file.read()
+
+        # ── Step 0: Validate image before upload/classify ────────────────────
+        validation_code = "OK"
+        try:
+            validation = gemini_client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=[
+                    types.Content(role="user", parts=[
+                        types.Part.from_bytes(data=image_bytes, mime_type=image_file.content_type or "image/jpeg"),
+                        types.Part(text=(
+                            "Evaluate this image for skin lesion analysis. Reply with exactly one of these codes:\n"
+                            "OK — image shows a single, close-up, in-focus skin lesion suitable for analysis\n"
+                            "NOT_SKIN — image does not show a skin lesion or dermatological finding\n"
+                            "TOO_FAR — the lesion is visible but too small/distant to assess\n"
+                            "MULTIPLE — image shows more than one distinct lesion\n"
+                            "BLURRY — image is out of focus or motion-blurred\n"
+                            "NOT_ASSESSABLE — other quality issue (poor lighting, obstruction, etc.)\n"
+                            "Reply with the code only, nothing else."
+                        )),
+                    ])
+                ],
+            )
+            validation_code = (validation.text or "").strip().upper()
+            print(f"[Validation] Result: {validation_code}")
+        except Exception as e:
+            print(f"[Validation] Check failed, proceeding anyway: {e}")
+
+        if validation_code not in ("OK", ""):
+            rejection_msg = REJECTION_MESSAGES.get(validation_code, REJECTION_MESSAGES["NOT_ASSESSABLE"])
+            def reject():
+                meta = json.dumps({"session_id": session_id, "image_url": None, "classification": None})
+                yield f"data: {meta}\n\n"
+                yield f"data: {json.dumps({'token': rejection_msg})}\n\n"
+                yield "data: [DONE]\n\n"
+            return Response(reject(), mimetype="text/event-stream",
+                            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
         try:
             image_url = upload_image_to_storage(image_bytes, image_id, image_file.content_type)
             print(f"[Storage] Uploaded image → {image_url}")

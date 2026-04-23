@@ -21,7 +21,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
 import com.dermai.app.R
@@ -35,19 +34,18 @@ class MainActivity : AppCompatActivity() {
     private val viewModel: ChatViewModel by viewModels()
     private lateinit var chatAdapter: ChatAdapter
 
-    // URI of the photo taken by camera (stored in cache for FileProvider)
-    private var cameraImageUri: Uri? = null
     // URI of the image selected from gallery or camera (pending send)
     private var pendingImageUri: Uri? = null
 
     // ── Activity result launchers ─────────────────────────────────────────────
 
-    // Camera capture
+    // Camera capture (custom CameraActivity)
     private val cameraLauncher = registerForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success && cameraImageUri != null) {
-            setPendingImage(cameraImageUri!!)
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val uriString = result.data?.getStringExtra(CameraActivity.EXTRA_IMAGE_URI)
+            if (uriString != null) setPendingImage(Uri.parse(uriString))
         }
     }
 
@@ -181,10 +179,9 @@ class MainActivity : AppCompatActivity() {
 
     // ── Image helpers ─────────────────────────────────────────────────────────
 
+    @androidx.camera.camera2.interop.ExperimentalCamera2Interop
     private fun launchCamera() {
-        val photoFile = File(cacheDir, "dermai_capture_${System.currentTimeMillis()}.jpg")
-        cameraImageUri = FileProvider.getUriForFile(this, "$packageName.fileprovider", photoFile)
-        cameraLauncher.launch(cameraImageUri)
+        cameraLauncher.launch(Intent(this, CameraActivity::class.java))
     }
 
     private fun setPendingImage(uri: Uri) {

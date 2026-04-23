@@ -57,6 +57,8 @@ class ChatViewModel : ViewModel() {
     var sessionId: String = UUID.randomUUID().toString()   // current session
     private val messageList = mutableListOf<ChatMessage>() // backing list for _messages
 
+    init { addWelcomeMessage() }
+
     // ── Sending messages ──────────────────────────────────────────────────────
 
     /**
@@ -170,5 +172,15 @@ class ChatViewModel : ViewModel() {
         _messages.value = emptyList()
         _classification.value = null
         _imageUrl.value = null
+        addWelcomeMessage()
+    }
+
+    private fun addWelcomeMessage() {
+        appendMessage(ChatMessage(
+            role = MessageRole.ASSISTANT,
+            text = "Hello! I'm DermAI, your skin lesion analysis assistant.\n\n" +
+                   "You can describe a lesion or attach an image for AI-assisted classification. " +
+                   "I'll provide observations and guidance — please remember to consult a dermatologist for a definitive diagnosis."
+        ))
     }
 }
