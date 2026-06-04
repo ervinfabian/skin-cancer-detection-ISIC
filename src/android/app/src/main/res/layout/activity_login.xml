@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Login screen — shown on first launch and after sign-out -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="40dp"
+    android:background="@color/bg_primary">
+
+    <!-- Logo pulse dot -->
+    <View
+        android:layout_width="12dp"
+        android:layout_height="12dp"
+        android:background="@drawable/pulse_dot"
+        android:layout_marginBottom="20dp" />
+
+    <!-- App name -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="DermAI"
+        android:textSize="36sp"
+        android:textColor="@color/accent"
+        android:letterSpacing="0.12"
+        android:textAllCaps="true"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Subtitle -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Skin Lesion Analysis"
+        android:textSize="13sp"
+        android:textColor="@color/text_dim"
+        android:letterSpacing="0.05"
+        android:layout_marginBottom="60dp" />
+
+    <!-- Google Sign-In button -->
+    <com.google.android.gms.common.SignInButton
+        android:id="@+id/btn_google_sign_in"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <!-- Status / error text -->
+    <TextView
+        android:id="@+id/tv_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="12sp"
+        android:textColor="@color/text_dim"
+        android:layout_marginTop="24dp"
+        android:visibility="gone" />
+
+</LinearLayout>

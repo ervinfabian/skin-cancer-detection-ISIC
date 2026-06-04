@@ -8,3 +8,6 @@ python-multipart>=0.0.9   # Required for FastAPI file uploads
 google-genai>=1.0.0       # Gemini API (new SDK)
 firebase-admin>=6.5.0     # Firebase Storage + Firestore
 pydantic>=2.0.0           # Request/response models
+certifi                   # SSL certs for mcp_server.py → Cloudflare tunnel
+python-dotenv             # Optional: load .env for API keys
+requests                  # HTTP client (transitive dep, pinned for clarity)

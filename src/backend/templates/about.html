@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DermAI — About</title>
+
+  <style>
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --border:   #2a2d3a;
+      --accent:   #6c8ef5;
+      --text:     #e8eaf0;
+      --text-dim: #7a7f99;
+      --success:  #4caf82;
+      --danger:   #e05c6e;
+      --radius:   12px;
+      --font:     'Courier New', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 1rem;
+      font-weight: normal;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    header a {
+      margin-left: auto;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      text-decoration: none;
+      letter-spacing: 0.05em;
+    }
+    header a:hover { color: var(--accent); }
+
+    main {
+      max-width: 720px;
+      margin: 48px auto;
+      padding: 0 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    h2 {
+      font-size: 1.4rem;
+      font-weight: normal;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+
+    p, li {
+      font-size: 0.88rem;
+      line-height: 1.8;
+      color: var(--text-dim);
+    }
+
+    ul {
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+    }
+
+    .step {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .step:last-child { border-bottom: none; }
+
+    .step-num {
+      font-size: 1.2rem;
+      color: var(--accent);
+      min-width: 28px;
+    }
+
+    .disclaimer {
+      background: rgba(224,92,110,0.07);
+      border: 1px solid var(--danger);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      font-size: 0.82rem;
+      color: var(--text-dim);
+      line-height: 1.7;
+    }
+
+    .disclaimer strong { color: var(--danger); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div style="width:10px;height:10px;border-radius:50%;background:var(--accent);"></div>
+    <h1>DermAI</h1>
+    <a href="/">← Back to chat</a>
+  </header>
+
+  <main>
+
+    <div>
+      <h2>What is DermAI?</h2>
+      <p>
+        DermAI is an AI-powered skin lesion analysis tool designed to help you decide
+        whether a skin lesion warrants a dermatologist consultation. It works with
+        photos taken directly with your smartphone camera or uploaded from your gallery.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>How does it work?</h2>
+      <div class="step">
+        <span class="step-num">01</span>
+        <p><strong style="color:var(--text)">Upload</strong> — Take or upload a close-up, focused photo of the skin lesion. The app automatically checks image quality and relevance before proceeding.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">02</span>
+        <p><strong style="color:var(--text)">AI Classification</strong> — A Vision Transformer model trained on the ISIC 2024 dataset classifies the lesion as <em>Benign</em> or <em>Malignant</em>, along with a confidence score.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">03</span>
+        <p><strong style="color:var(--text)">Explanation</strong> — Gemini Flash explains the result in plain language, applying the ABCDE rule (asymmetry, border, color, diameter, evolution).</p>
+      </div>
+      <div class="step">
+        <span class="step-num">04</span>
+        <p><strong style="color:var(--text)">Follow-up</strong> — Ask follow-up questions about the lesion and receive detailed, conversational answers from the AI.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Features</h2>
+      <ul>
+        <li>Benign / malignant classification with confidence score</li>
+        <li>Automatic image quality and relevance validation</li>
+        <li>ABCDE-rule based observations in plain language</li>
+        <li>Conversational follow-up on lesion-related questions</li>
+        <li>Session history saved and accessible anytime</li>
+      </ul>
+    </div>
+
+    <div class="disclaimer">
+      <strong>⚠ Important disclaimer</strong><br>
+      DermAI is an informational screening tool only — it does not replace professional
+      medical examination or diagnosis. Never make a medical decision based solely on
+      this application's output. If you have any concerns about a skin lesion,
+      consult a dermatologist.
+    </div>
+
+  </main>
+
+</body>
+</html>

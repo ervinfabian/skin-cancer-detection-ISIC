@@ -7,3 +7,7 @@
 
 flask>=3.0.0              # Web framework
 google-genai>=1.0.0       # Gemini API (new SDK)
+firebase-admin>=6.5.0     # Firebase Storage + Firestore
+certifi                   # SSL certs for mcp_server.py → Cloudflare tunnel
+python-dotenv             # Optional: load .env for API keys
+requests                  # HTTP client (transitive dep, pinned for clarity)

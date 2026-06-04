@@ -22,7 +22,7 @@ import json
 import base64
 import subprocess
 import threading
-import time
+import time  # already imported — used for MCP retry backoff
 # ── CHANGED BY CLAUDE (2026-03-30) ───────────────────────────────────────────
 # ORIGINAL: no Firebase imports — app.py was fully stateless (images discarded,
 #           no sessions saved, no persistence at all)
@@ -34,7 +34,11 @@ import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
 
-from flask import Flask, render_template, request, Response, stream_with_context
+from dotenv import load_dotenv
+load_dotenv()  # loads .env from the current directory (or any parent)
+
+from functools import wraps
+from flask import Flask, g, render_template, request, Response, stream_with_context
 from google import genai
 from google.genai import types
 
@@ -117,22 +121,24 @@ def get_bucket():
 #           identical in structure to the ones in api.py
 # =============================================================================
 
-def upload_image_to_storage(image_bytes: bytes, image_id: str, content_type: str = "image/jpeg") -> str:
-    """Upload image bytes to Firebase Storage under lesions/<image_id>.jpg.
+def upload_image_to_storage(image_bytes: bytes, image_id: str, uid: str, content_type: str = "image/jpeg") -> str:
+    """Upload image bytes to Firebase Storage under users/<uid>/lesions/<image_id>.jpg.
     Returns the public HTTPS URL."""
     bucket = get_bucket()
-    blob   = bucket.blob(f"lesions/{image_id}.jpg")
+    blob   = bucket.blob(f"users/{uid}/lesions/{image_id}.jpg")
     blob.upload_from_string(image_bytes, content_type=content_type)
     blob.make_public()
     return blob.public_url
 
 
 def save_session_to_firestore(session_id: str, image_id: str | None,
-                               classification: dict | None, messages: list) -> None:
+                               classification: dict | None, messages: list,
+                               uid: str = "") -> None:
     """Create or merge a session document in Firestore.
 
     Structure:
       sessions/{session_id}
+        ├── user_id:        Firebase UID of the owner
         ├── created_at:     ISO timestamp
         ├── source:         "web"           ← marks origin as the web UI
         ├── image_id:       str | null
@@ -142,6 +148,7 @@ def save_session_to_firestore(session_id: str, image_id: str | None,
     db  = get_db()
     ref = db.collection("sessions").document(session_id)
     ref.set({
+        "user_id":        uid,
         "created_at":     datetime.datetime.utcnow().isoformat(),
         "source":         "web",
         "image_id":       image_id,
@@ -168,6 +175,23 @@ def append_message_to_firestore(session_id: str, role: str, text: str) -> None:
 
 app = Flask(__name__)
 
+# ── Firebase Auth token verification ─────────────────────────────────────────
+
+def require_auth(f):
+    """Decorator that verifies the Firebase ID token in the Authorization header."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        if not token:
+            return {"error": "Unauthorized"}, 401
+        try:
+            decoded = firebase_admin.auth.verify_id_token(token)
+            g.uid = decoded.get("uid", "")
+        except Exception:
+            return {"error": "Invalid or expired token"}, 401
+        return f(*args, **kwargs)
+    return decorated
+
 # Configure Gemini client (new google.genai SDK)
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -179,7 +203,7 @@ class MCPClient:
     """
     Manages a persistent subprocess running mcp_server.py.
     Sends JSON-RPC requests via stdin, reads responses from stdout.
-    Thread-safe via a lock.
+    Thread-safe via a lock. Restarts the subprocess automatically on failure.
     """
 
     def __init__(self, server_script: str):
@@ -187,58 +211,79 @@ class MCPClient:
         self.process = None
         self.lock = threading.Lock()
         self._request_id = 0
+        self._current_url = os.environ.get("COLAB_MODEL_URL", "")
         self._start()
 
     def _start(self):
-        """Spawn the MCP server subprocess."""
+        """Spawn the MCP server subprocess, forwarding the current model URL."""
+        env = os.environ.copy()
+        if self._current_url:
+            env["COLAB_MODEL_URL"] = self._current_url
         self.process = subprocess.Popen(
-            [sys.executable, self.server_script],  # sys.executable = the running python (python3, venv, etc.)
+            [sys.executable, self.server_script],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=None,          # MCP server logs to its own stderr
+            stderr=None,
             text=True,
-            bufsize=1,            # line-buffered
+            bufsize=1,
+            env=env,
         )
-        # Perform MCP handshake (initialize)
-        self._call("initialize", {
+        self._raw_call("initialize", {
             "protocolVersion": "2024-11-05",
             "clientInfo": {"name": "flask-client", "version": "1.0.0"},
             "capabilities": {},
         })
 
+    def _restart(self):
+        try:
+            self.process.kill()
+            self.process.wait(timeout=5)
+        except Exception:
+            pass
+        self._start()
+
     def _next_id(self) -> int:
         self._request_id += 1
         return self._request_id
 
-    def _call(self, method: str, params: dict) -> dict:
-        """Send a JSON-RPC request and block until the response arrives."""
+    def _raw_call(self, method: str, params: dict) -> dict:
+        """Single call attempt — no retry."""
         req_id  = self._next_id()
         payload = json.dumps({"jsonrpc": "2.0", "id": req_id, "method": method, "params": params})
-
         with self.lock:
-            # Write request to MCP server stdin
             self.process.stdin.write(payload + "\n")
             self.process.stdin.flush()
-
-            # Read response from MCP server stdout
             line = self.process.stdout.readline()
-
         return json.loads(line)
 
+    def _call(self, method: str, params: dict) -> dict:
+        """Call with up to 3 attempts, restarting the subprocess on failure."""
+        last_exc = None
+        for attempt in range(3):
+            try:
+                return self._raw_call(method, params)
+            except Exception as e:
+                last_exc = e
+                print(f"[MCP] Attempt {attempt + 1}/3 failed: {e}")
+                if attempt < 2:
+                    time.sleep(1.0 * (attempt + 1))
+                    self._restart()
+        raise RuntimeError(f"MCP call failed after 3 attempts: {last_exc}")
+
     def classify_lesion(self, image_bytes: bytes) -> dict:
-        """
-        Call the MCP tool 'classify_lesion' with a raw image.
-        Returns a dict: {label, confidence, all_scores}
-        """
+        """Call the classify_lesion MCP tool. Returns {label, confidence, all_scores}."""
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
         response  = self._call("tools/call", {
             "name": "classify_lesion",
             "arguments": {"image_base64": image_b64},
         })
-
-        # Parse the text content returned by the MCP tool
         result_text = response["result"]["content"][0]["text"]
         return json.loads(result_text)
+
+    def update_model_url(self, url: str) -> None:
+        """Update the Colab ViT endpoint at runtime — no server restart needed."""
+        self._current_url = url.rstrip("/")
+        self._raw_call("update_model_url", {"url": self._current_url})
 
 
 # Instantiate the MCP client once (reused across all requests)
@@ -250,11 +295,22 @@ mcp_client = MCPClient(MCP_SERVER_PATH)
 
 @app.route("/")
 def index():
-    """Serve the chat UI."""
-    return render_template("index.html")
+    """Serve the chat UI — passes Firebase web config for client-side auth."""
+    import json as _json
+    firebase_config = _json.dumps({
+        "apiKey":             os.environ.get("FIREBASE_WEB_API_KEY", ""),
+        "authDomain":         os.environ.get("FIREBASE_AUTH_DOMAIN", ""),
+        "projectId":          os.environ.get("FIREBASE_PROJECT_ID", ""),
+        "storageBucket":      FIREBASE_STORAGE_BUCKET,
+        "messagingSenderId":  os.environ.get("FIREBASE_MESSAGING_SENDER_ID", ""),
+        "appId":              os.environ.get("FIREBASE_APP_ID", ""),
+        "measurementId":      os.environ.get("FIREBASE_MEASUREMENT_ID", ""),
+    })
+    return render_template("index.html", firebase_config=firebase_config)
 
 
 @app.route("/chat", methods=["POST"])
+@require_auth
 def chat():
     """
     Endpoint called by the browser for each chat message.
@@ -346,7 +402,7 @@ def chat():
                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
         try:
-            image_url = upload_image_to_storage(image_bytes, image_id, image_file.content_type)
+            image_url = upload_image_to_storage(image_bytes, image_id, g.uid, image_file.content_type)
             print(f"[Storage] Uploaded image → {image_url}")
         except Exception as e:
             print(f"[Storage] Upload failed: {e}")
@@ -382,6 +438,7 @@ def chat():
                 "text":      user_message,
                 "timestamp": datetime.datetime.utcnow().isoformat(),
             }],
+            uid=g.uid,
         )
     except Exception as e:
         print(f"[Firestore] Save failed: {e}")
@@ -451,6 +508,22 @@ def chat():
 # =============================================================================
 # ENTRY POINT
 # =============================================================================
+
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
+
+@app.route("/model-url", methods=["POST"])
+def update_model_url():
+    """Update the Colab ViT model URL without restarting the server."""
+    data = request.get_json() or {}
+    url  = data.get("url", "").strip()
+    if not url:
+        return {"error": "url required"}, 400
+    mcp_client.update_model_url(url)
+    return {"status": "updated", "url": url}
+
 
 if __name__ == "__main__":
     # debug=False in production; threaded=True supports concurrent SSE streams

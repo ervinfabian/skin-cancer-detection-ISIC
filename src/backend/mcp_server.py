@@ -232,6 +232,19 @@ def handle(request: dict):
                     "error": {"code": -32000, "message": str(e)}
                 }
 
+    # ── Update Colab model URL at runtime (no subprocess restart needed) ────────
+    if method == "update_model_url":
+        global COLAB_MODEL_URL, CLASSIFY_ENDPOINT
+        new_url = params.get("url", "").rstrip("/")
+        if new_url:
+            COLAB_MODEL_URL = new_url
+            CLASSIFY_ENDPOINT = f"{COLAB_MODEL_URL}/classify"
+            log.info(f"Model URL updated: {CLASSIFY_ENDPOINT}")
+        return {
+            "jsonrpc": "2.0", "id": req_id,
+            "result": {"status": "updated", "endpoint": CLASSIFY_ENDPOINT},
+        }
+
     # ── Unknown method ────────────────────────────────────────────────────────
     return {
         "jsonrpc": "2.0", "id": req_id,

@@ -1,37 +1,31 @@
-\section{Bevezető}
-A bőr felületén lévő elváltozások igen változatosak. Diagnosztikailag az egyik
-legfontosabb megkülönböztetési szempont az elváltozás daganatos jellege vagy 
-annak hiánya.
-Mesterséges intelligencia általi osztályozása bőrelváltozásoknak igéretes eredményeket 
-ért el, de a szelekciós torzitás (a klinikailag malignusnak ítélt elváltozásoknak 
-dokumentálása jellemző), a magas színtű szakmai ismeret szűkségessége és a csak nagy
-részletességű dermaszkópiai felvételek használatával voltak lehetséges.
-Ezek behatárolták ezen osztályozási kisérletek hatékonyságát.
+\section{Motiváció és problémafelvetés}
 
-Éppen ezért célunk egy olyan weboldal létrehozása amely okostelefonok elváltozásokról
-készített képei alapján is, valamilyen valószínűséggel meg tudja határozni, hogy egy
-bizonyos elváltozást érdemes szakemberrel kivizsgáltatni.
+A bőrrák napjaink egyik legelterjedtebb daganatos megbetegedése. A Globális Rákstatisztikák (GLOBOCAN) legfrissebb adatai szerint évente több mint egymillió új melanoma-esetet diagnosztizálnak világszerte, és a korai felismerés hiányában a betegség gyorsan áttétet képezhet, drasztikusan csökkentve a túlélési esélyeket \cite{sung2021global}. Ezzel szemben az időben felismert, még felszíni stádiumban lévő melanoma esetén az ötéves túlélési arány meghaladja a 98\%-ot, míg előrehaladott stádiumban ez az arány 20\% alá esik \cite{who2023skin}. A korai diagnózis tehát nem csupán orvosi, hanem népegészségügyi szempontból is kritikus fontosságú.
 
- A \ref{fig:child_dragged} ábrán látható ahogy egy robotraj együttesen elmozdít egy kislányt.
+A hagyományos diagnosztikai folyamat egy dermatológus által végzett vizuális vizsgálatot és dermatoszkópos értékelést foglal magában, amelyhez magas szintű szakmai tudás és speciális eszközök szükségesek. A világ számos részén, különösen vidéki térségekben és fejlődő országokban, a bőrgyógyászati szakellátáshoz való hozzáférés korlátozott, ami késedelmes diagnózishoz és rosszabb kimenetelhez vezet. Emellett még fejlett egészségügyi rendszerekben is előfordul, hogy a betegek hosszú várakozási idő után jutnak szakorvosi vizsgálathoz.
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[scale=0.6]{figures/images/literature/child_dragged_robots.png}
-    \caption{Rövid szöveg a képről, hivatkozás \cite{parker2016multiple}}
-    \label{fig:child_dragged}
-\end{figure}
+A mesterséges intelligencia, azon belül a mély tanulás megjelenése új lehetőségeket nyitott a bőrelváltozások automatikus osztályozásában. Az egyik úttörő tanulmányban Esteva és munkatársai kimutatták, hogy egy konvolúciós neurális háló bőrrák-osztályozásban eléri a tapasztalt dermatológusok szintjét \cite{esteva2017dermatologist}. Ezt követően számos kutatás megerősítette, hogy a mélytanulás-alapú rendszerek képesek megközelíteni, sőt bizonyos feltételek mellett meghaladni az emberi szakértők teljesítményét \cite{haenssle2018man, brinker2019deep}.
 
-\section{Cím 2}
+Ugyanakkor ezek a rendszerek kezdetben komoly korlátokkal rendelkeztek: kizárólag dermatoszkópos, nagy felbontású klinikai felvételeken működtek megbízhatóan, amelyek elkészítéséhez speciális eszközre és szakértelemre van szükség. A szelekciós torzítás is jelentős problémaként merült fel, hiszen az elérhető adathalmazok döntően klinikailag gyanús, már szakorvoshoz kerülő elváltozásokat tartalmaztak, ami a modellek általánosíthatóságát korlátozta. A HAM10000 \cite{tschandl2019ham10000}, majd az ISIC versenysorozat adathalmazai \cite{rotemberg2021isic, isic2024} lényegesen bővítették az elérhető annotált képanyagot, és egy egységes értékelési keretet biztosítottak a kutatók számára.
 
-Két ábra egymás mellett (lásd \ref{fig:insbots} ábra).
+Az okostelefonok elterjedése és folyamatosan fejlődő kamerarendszerei új perspektívát nyitottak: a bőrgyógyászati szűrés akár közvetlenül a beteg kezébe adható eszközöket is alkalmazhat. Egy ilyen rendszer képes lenne arra, hogy a felhasználó által készített fotó alapján jelezze, ha egy elváltozás szakorvosi vizsgálatot indokolhat, csökkentve ezzel mind a késői diagnózisok számát, mind az indokolatlan orvosi viziteket.
 
-\begin{figure}[h]
-    \centering
-    \hfill
-    \subfigure[Insbot \cite{colot2004insbot}]{\includegraphics[scale=0.3]{figures/images/literature/insbot.png}}
-    \hfill
-    \subfigure[Insbot és csótányok interakciója \cite{garnier2011ants}.]{\includegraphics[scale=0.25]{figures/images/literature/insbot_cockroach.png}}
-    
-    \caption{Insbot és csótányok interakciója. Az insbot-ok képesek a csótányokat csalogatni.}
-    \label{fig:insbots}
-\end{figure}
+\section{A dolgozat célja}
+
+Jelen dolgozat egy végponttól végpontig megvalósított bőrelváltozás-elemző rendszer tervezését és implementációját mutatja be, amely az ISIC 2024 versenyadathalmazán \cite{isic2024} betanított Vision Transformer (ViT) \cite{dosovitskiy2021vit} modellre épül.
+
+A rendszer fő célkitűzései a következők:
+
+\begin{itemize}
+    \item Egy Android mobilalkalmazás fejlesztése, amely lehetővé teszi a felhasználó számára, hogy fényképet készítsen vagy töltsön fel egy bőrelváltozásról, és azonnali, AI-alapú elemzést kapjon.
+    \item A feltöltött kép minőségének és relevanciájának automatikus ellenőrzése egy nagy nyelvi modell (Gemini) segítségével, kiszűrve az értékelhetetlen vagy nem megfelelő felvételeket.
+    \item A bőrelváltozás osztályozása \textit{Benignus} vagy \textit{Malignus} kategóriába egy ViT-alapú neurális hálóval, konfidencia-értékkel kiegészítve.
+    \item Természetes nyelvű magyarázat és orvosi szempontú visszajelzés generálása a klasszifikációs eredmény alapján, az ABCDE-szabály \footnote{Aszimmetria, határvonal, szín, átmérő, evolúció -- a melanoma gyanújelei.} figyelembevételével.
+    \item A felhasználói interakciók és a feltöltött képek biztonságos tárolása felhőalapú infrastruktúrán.
+\end{itemize}
+
+Fontos hangsúlyozni, hogy a rendszer nem helyettesíti a szakorvosi diagnózist: kizárólag tájékoztató jellegű szűrőeszközként funkcionál, amely segíti a felhasználót abban, hogy időben döntsön a dermatológiai konzultáció szükségességéről.
+
+\section{A dolgozat felépítése}
+
+A dolgozat a következő fejezetekre tagolódik. A \textbf{Szakirodalom áttekintése} fejezetben bemutatjuk a mély tanulás bőrgyógyászati alkalmazásainak legfontosabb előzményeit, az ISIC adathalmazok fejlődését, valamint a Vision Transformer architektúra megjelenését és jelentőségét a képosztályozásban. Az \textbf{Elméleti áttekintés} fejezet a rendszer mögötti kulcstechnológiákat ismerteti: a ViT architektúrát, a Gemini nagy nyelvi modell alkalmazását, a szerver-küldött esemény (SSE) alapú streamingprotokolt, illetve a felhőalapú adattárolás elvét. A \textbf{Rendszer specifikációi} fejezet a funkcionális és nem-funkcionális követelményeket, valamint az architektúrális döntéseket részletezi. A \textbf{Gyakorlati megvalósítás} fejezet a backend, a mobilalkalmazás és a modell tanítási folyamatának implementációját tárgyalja. Az \textbf{Eredmények} fejezetben a modell teljesítményét értékeljük kvantitatív metrikák alapján, és bemutatjuk a rendszer működését valós képeken. Végül az \textbf{Összefoglalás} a dolgozat következtetéseit és a lehetséges jövőbeli fejlesztési irányokat foglalja össze.

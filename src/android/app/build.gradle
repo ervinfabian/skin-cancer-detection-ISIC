@@ -22,7 +22,7 @@ android {
         versionName "1.0"
 
         // Your FastAPI backend URL — change for production
-        buildConfigField "String", "API_BASE_URL", "\"http://192.168.1.100:8000\""
+        buildConfigField "String", "API_BASE_URL", "\"http://localhost:8000\""
         // 192.168.1.100 = host machine LAN IP for physical device over WiFi
         // Use 10.0.2.2 for Android emulator
     }
@@ -72,6 +72,8 @@ dependencies {
     implementation platform('com.google.firebase:firebase-bom:32.7.0')
     implementation 'com.google.firebase:firebase-storage-ktx'    // image uploads
     implementation 'com.google.firebase:firebase-firestore-ktx'  // session storage
+    implementation 'com.google.firebase:firebase-auth-ktx'       // authentication
+    implementation 'com.google.android.gms:play-services-auth:21.0.0' // Google Sign-In
 
     // ── CameraX ───────────────────────────────────────────────────────────
     implementation 'androidx.camera:camera-core:1.3.1'

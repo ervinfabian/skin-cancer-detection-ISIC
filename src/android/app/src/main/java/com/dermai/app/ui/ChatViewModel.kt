@@ -20,8 +20,11 @@ import com.dermai.app.model.ChatMessage
 import com.dermai.app.model.Classification
 import com.dermai.app.model.MessageRole
 import com.dermai.app.util.ImageUtils
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
+import java.io.IOException
 import java.util.UUID
 
 class ChatViewModel : ViewModel() {
@@ -104,6 +107,13 @@ class ChatViewModel : ViewModel() {
             }
 
             flow
+                .retryWhen { cause, attempt ->
+                    if (cause is IOException && attempt < 2L) {
+                        Log.w(TAG, "Stream error (attempt ${attempt + 1}), retrying: ${cause.message}")
+                        delay(1_000L * (attempt + 1))
+                        true
+                    } else false
+                }
                 .catch { e ->
                     Log.e(TAG, "Stream error", e)
                     _error.value = "Connection failed: ${e.message}"

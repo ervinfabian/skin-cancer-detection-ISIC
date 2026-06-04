@@ -14,19 +14,31 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.text.InputType
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
 import com.dermai.app.R
+import com.dermai.app.api.ApiService
 import com.dermai.app.databinding.ActivityMainBinding
+import com.dermai.app.util.NetworkConfig
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.auth.FirebaseAuth
 import java.io.File
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -67,8 +79,19 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Guard: if not signed in, go back to login screen
+        if (FirebaseAuth.getInstance().currentUser == null) {
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
+        }
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Initialize ApiService with the stored URL before the ViewModel accesses it.
+        ApiService.init(NetworkConfig.getBaseUrl(this))
 
         setSupportActionBar(binding.toolbar)
         supportActionBar?.title = ""
@@ -91,6 +114,18 @@ class MainActivity : AppCompatActivity() {
         R.id.action_new_chat -> {
             viewModel.startNewSession()
             clearPendingImage()
+            true
+        }
+        R.id.action_about -> {
+            showAboutDialog()
+            true
+        }
+        R.id.action_settings -> {
+            showSettingsDialog()
+            true
+        }
+        R.id.action_sign_out -> {
+            signOut()
             true
         }
         else -> super.onOptionsItemSelected(item)
@@ -198,5 +233,106 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSnackbar(message: String) {
         Snackbar.make(binding.root, message, Snackbar.LENGTH_LONG).show()
+    }
+
+    // ── Settings dialog ───────────────────────────────────────────────────────
+
+    private fun showSettingsDialog() {
+        val ctx = this
+        val padding = (24 * resources.displayMetrics.density).toInt()
+
+        val layout = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padding * 2, padding, padding * 2, 0)
+        }
+
+        val backendInput = EditText(ctx).apply {
+            hint = "http://192.168.x.x:8000"
+            setText(NetworkConfig.getBaseUrl(ctx))
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setSingleLine()
+        }
+
+        val modelInput = EditText(ctx).apply {
+            hint = "https://xxxx.trycloudflare.com  (leave empty to keep)"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setSingleLine()
+        }
+
+        layout.addView(TextView(ctx).apply { text = "Backend server URL" })
+        layout.addView(backendInput)
+        layout.addView(TextView(ctx).apply {
+            text = "Colab model URL"
+            setPadding(0, padding, 0, 0)
+        })
+        layout.addView(modelInput)
+
+        AlertDialog.Builder(ctx)
+            .setTitle("Network settings")
+            .setView(layout)
+            .setPositiveButton("Save") { _, _ ->
+                val newBackend = backendInput.text.toString().trim()
+                if (newBackend.isNotEmpty()) {
+                    NetworkConfig.setBaseUrl(ctx, newBackend)
+                    ApiService.instance.updateBaseUrl(newBackend)
+                    showSnackbar("Backend URL saved")
+                }
+                val newModel = modelInput.text.toString().trim()
+                if (newModel.isNotEmpty()) {
+                    sendModelUrlUpdate(newModel)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Test connection") { _, _ -> testConnection() }
+            .show()
+    }
+
+    private fun sendModelUrlUpdate(url: String) {
+        lifecycleScope.launch {
+            try {
+                ApiService.instance.restApi.updateModelUrl(mapOf("url" to url))
+                showSnackbar("Model URL updated")
+            } catch (e: Exception) {
+                showSnackbar("Model URL update failed: ${e.message}")
+            }
+        }
+    }
+
+    private fun showAboutDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("About DermAI")
+            .setMessage(
+                "DermAI is an AI-powered skin lesion analysis tool that helps you decide " +
+                "whether a lesion warrants a dermatologist consultation.\n\n" +
+                "How it works:\n" +
+                "① Upload a photo of the skin lesion\n" +
+                "② A Vision Transformer model classifies it as Benign or Malignant\n" +
+                "③ Gemini AI explains the result using the ABCDE rule\n" +
+                "④ Ask follow-up questions about the lesion\n\n" +
+                "⚠ This app does not replace professional medical diagnosis — " +
+                "it is an informational screening tool only."
+            )
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    private fun signOut() {
+        FirebaseAuth.getInstance().signOut()
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
+        GoogleSignIn.getClient(this, gso).signOut().addOnCompleteListener {
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+        }
+    }
+
+    private fun testConnection() {
+        lifecycleScope.launch {
+            try {
+                val result = ApiService.instance.restApi.health()
+                showSnackbar("Connected — ${result["status"]} (${result["model"]})")
+            } catch (e: Exception) {
+                showSnackbar("Connection failed: ${e.message}")
+            }
+        }
     }
 }
