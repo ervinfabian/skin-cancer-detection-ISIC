@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DermAI — Skin Lesion Assistant</title>
+  <!-- Firebase JS SDK -->
+  <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-auth-compat.js"></script>
 
   <!--
     index.html — Chat UI
@@ -292,6 +295,55 @@
 
     #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+    /* ── Login overlay ─────────────────────────────────────────────────── */
+    #login-overlay {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 100;
+    }
+
+    #login-overlay h1 {
+      font-size: 2rem;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    #login-overlay p {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-bottom: 24px;
+    }
+
+    #btn-google-signin {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 24px;
+      background: #fff;
+      color: #333;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    #btn-google-signin:hover { opacity: 0.9; }
+    #btn-google-signin img  { width: 20px; height: 20px; }
+
+    #login-status {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      min-height: 1em;
+    }
+
     /* Disclaimer */
     .disclaimer {
       text-align: center;
@@ -303,11 +355,24 @@
 </head>
 <body>
 
+  <!-- ── Login overlay (hidden after sign-in) ──────────────────────────── -->
+  <div id="login-overlay">
+    <h1>DermAI</h1>
+    <p>Skin Lesion Analysis · Powered by Gemini Flash</p>
+    <button id="btn-google-signin">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
+      Sign in with Google
+    </button>
+    <span id="login-status"></span>
+  </div>
+
   <!-- ── Header ──────────────────────────────────────────────────────────── -->
   <header>
     <div class="logo"></div>
     <h1>DermAI</h1>
     <span class="subtitle">Skin Lesion Analysis · Powered by Gemini Flash</span>
+    <a href="/about" style="margin-left:auto; font-size:0.72rem; color:var(--text-dim); letter-spacing:0.05em; text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-dim)'">About</a>
+    <button id="btn-sign-out" onclick="signOut()" style="margin-left:16px; background:none; border:1px solid var(--border); border-radius:6px; padding:4px 12px; font-family:var(--font); font-size:0.72rem; color:var(--text-dim); cursor:pointer; letter-spacing:0.05em;" onmouseover="this.style.borderColor='var(--danger)';this.style.color='var(--danger)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">Sign out</button>
     <!-- CHANGED BY CLAUDE (2026-03-30): added save indicator pill -->
     <span id="save-indicator">✓ saved</span>
   </header>
@@ -347,6 +412,47 @@
       ⚠ For informational purposes only — not a substitute for professional medical advice.
     </p>
   </div>
+
+  <script>
+    // ── Firebase Auth ────────────────────────────────────────────────────────
+    // Config injected by Flask from environment variables
+    const firebaseConfig = {{ firebase_config | safe }};
+    firebase.initializeApp(firebaseConfig);
+
+    const auth      = firebase.auth();
+    const provider  = new firebase.auth.GoogleAuthProvider();
+    const overlay   = document.getElementById("login-overlay");
+    const loginStatus = document.getElementById("login-status");
+    let   idToken   = null;   // refreshed before each request
+
+    document.getElementById("btn-google-signin").addEventListener("click", () => {
+      loginStatus.textContent = "Signing in…";
+      auth.signInWithPopup(provider).catch(e => {
+        loginStatus.textContent = "Sign-in failed: " + e.message;
+      });
+    });
+
+    auth.onAuthStateChanged(async user => {
+      if (user) {
+        idToken = await user.getIdToken();
+        overlay.style.display = "none";
+      } else {
+        idToken = null;
+        overlay.style.display = "flex";
+      }
+    });
+
+    function signOut() {
+      auth.signOut();   // onAuthStateChanged fires → overlay reappears
+    }
+
+    async function getToken() {
+      const user = auth.currentUser;
+      if (!user) return null;
+      idToken = await user.getIdToken();   // auto-refreshes if expired
+      return idToken;
+    }
+  </script>
 
   <script>
     /*
@@ -472,8 +578,13 @@
       let fullResponse = "";
 
       try {
-        // POST to /chat — returns SSE stream
-        const response = await fetch("/chat", { method: "POST", body: formData });
+        // POST to /chat — returns SSE stream (with Firebase auth token)
+        const token = await getToken();
+        const response = await fetch("/chat", {
+          method: "POST",
+          body: formData,
+          headers: token ? { "Authorization": "Bearer " + token } : {},
+        });
 
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 

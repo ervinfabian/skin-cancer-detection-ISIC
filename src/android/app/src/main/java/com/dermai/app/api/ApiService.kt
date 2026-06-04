@@ -2,10 +2,15 @@
 // ==================
 // Handles all network communication with the FastAPI backend.
 //
-// Two patterns used:
-//   1. OkHttp raw streaming — for SSE endpoints (/analyze, /chat)
-//      SSE (Server-Sent Events) delivers tokens one-by-one as they arrive from Gemini.
-//   2. Retrofit — for simple REST calls (/history, /sessions, /health)
+// Two patterns:
+//   1. OkHttp raw streaming  — SSE endpoints (/analyze, /chat), long read timeout
+//   2. Retrofit              — REST calls (/history, /sessions, /health, /model-url)
+//                              with automatic retry on transient network errors
+//
+// Initialization:
+//   Call ApiService.init(baseUrl) once before any access (e.g. in Application.onCreate
+//   or at the top of MainActivity.onCreate). After that, use ApiService.instance.
+//   Call ApiService.instance.updateBaseUrl(url) to change the server URL at runtime.
 
 package com.dermai.app.api
 
@@ -16,15 +21,16 @@ import com.google.gson.Gson
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import com.google.android.gms.tasks.Tasks
+import com.google.firebase.auth.FirebaseAuth
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.asRequestBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.GET
-import retrofit2.http.Path
-import retrofit2.http.Query
+import retrofit2.http.*
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 // ── Retrofit interface (REST endpoints only) ──────────────────────────────────
@@ -38,60 +44,130 @@ interface DermApiRest {
 
     @GET("health")
     suspend fun health(): Map<String, String>
+
+    @PUT("model-url")
+    suspend fun updateModelUrl(@Body body: Map<String, String>): Map<String, String>
 }
 
-// ── Sealed result type for SSE stream events ──────────────────────────────────
+// ── SSE stream event types ────────────────────────────────────────────────────
 
 sealed class StreamEvent {
-    data class Meta(val data: AnalyzeMetaEvent) : StreamEvent()   // first event from /analyze
-    data class Token(val text: String)          : StreamEvent()   // streamed Gemini token
-    data class Error(val message: String)       : StreamEvent()   // error from server
-    object Done                                 : StreamEvent()   // stream finished
+    data class Meta(val data: AnalyzeMetaEvent) : StreamEvent()
+    data class Token(val text: String)          : StreamEvent()
+    data class Error(val message: String)       : StreamEvent()
+    object Done                                 : StreamEvent()
 }
 
-// ── Main API service class ────────────────────────────────────────────────────
+// ── Auth interceptor — attaches Firebase ID token to every request ────────────
+// Runs on a background thread (OkHttp dispatcher), so Tasks.await is safe here.
 
-class ApiService {
+private class AuthInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val user = FirebaseAuth.getInstance().currentUser
+            ?: return chain.proceed(chain.request())
+
+        val token = try {
+            Tasks.await(user.getIdToken(false)).token
+        } catch (e: Exception) {
+            null
+        } ?: return chain.proceed(chain.request())
+
+        return chain.proceed(
+            chain.request().newBuilder()
+                .addHeader("Authorization", "Bearer $token")
+                .build()
+        )
+    }
+}
+
+// ── Retry interceptor — REST calls only, not used on SSE streams ──────────────
+// Retries up to maxRetries times on IOException or server errors (5xx).
+// Each retry waits exponentially longer (500 ms, 1 s, 2 s, …, capped at 8 s).
+
+private class RetryInterceptor(private val maxRetries: Int = 3) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        var attempt = 0
+        var lastException: IOException? = null
+        while (attempt <= maxRetries) {
+            try {
+                val response = chain.proceed(chain.request())
+                if (response.isSuccessful || attempt >= maxRetries) return response
+                response.close()
+            } catch (e: IOException) {
+                lastException = e
+                if (attempt >= maxRetries) throw e
+            }
+            attempt++
+            Thread.sleep((500L shl attempt.coerceAtMost(4)).coerceAtMost(8_000L))
+        }
+        throw lastException ?: IOException("Max retries exceeded")
+    }
+}
+
+// ── ApiService ────────────────────────────────────────────────────────────────
+
+class ApiService private constructor(initialUrl: String) {
 
     companion object {
         private const val TAG = "ApiService"
 
-        // Singleton instance
-        val instance: ApiService by lazy { ApiService() }
+        @Volatile private var _instance: ApiService? = null
+
+        val instance: ApiService
+            get() = _instance
+                ?: error("ApiService not initialized — call ApiService.init(url) first")
+
+        // Call once before first access (MainActivity.onCreate or Application.onCreate).
+        // Subsequent calls are no-ops; use updateBaseUrl() to change the URL later.
+        fun init(baseUrl: String): ApiService =
+            _instance ?: synchronized(this) {
+                _instance ?: ApiService(baseUrl).also { _instance = it }
+            }
     }
+
+    @Volatile var baseUrl: String = initialUrl.trimEnd('/')
+        private set
 
     private val gson = Gson()
 
-    // OkHttp client with long read timeout (SSE streams can be slow)
-    private val okHttpClient = OkHttpClient.Builder()
+    private val authInterceptor = AuthInterceptor()
+
+    // Long-timeout client for SSE streams — auth + no retry (handled at flow level)
+    private val sseClient = OkHttpClient.Builder()
         .readTimeout(120, TimeUnit.SECONDS)
         .connectTimeout(15, TimeUnit.SECONDS)
+        .addInterceptor(authInterceptor)
         .build()
 
-    // Retrofit client for non-streaming REST calls
-    private val retrofit = Retrofit.Builder()
-        .baseUrl(BuildConfig.API_BASE_URL + "/")
-        .client(okHttpClient)
-        .addConverterFactory(GsonConverterFactory.create())
+    // Short-timeout client for REST calls — auth + automatic retry on failure
+    private val restOkHttp = OkHttpClient.Builder()
+        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .addInterceptor(authInterceptor)
+        .addInterceptor(RetryInterceptor(maxRetries = 3))
         .build()
 
-    val restApi: DermApiRest = retrofit.create(DermApiRest::class.java)
+    @Volatile var restApi: DermApiRest = buildRetrofit()
+        private set
+
+    private fun buildRetrofit(): DermApiRest =
+        Retrofit.Builder()
+            .baseUrl("$baseUrl/")
+            .client(restOkHttp)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(DermApiRest::class.java)
+
+    // Update the server base URL at runtime (e.g. from the settings dialog).
+    // Rebuilds the Retrofit client; ongoing SSE streams use the new URL on their next request.
+    fun updateBaseUrl(newUrl: String) {
+        baseUrl = newUrl.trimEnd('/')
+        restApi = buildRetrofit()
+    }
 
     // ── /analyze — image upload + SSE stream ─────────────────────────────────
+    // On network failure the flow throws IOException so callers can use retryWhen.
 
-    /**
-     * Upload an image to the FastAPI /analyze endpoint and stream back events.
-     *
-     * Emits:
-     *   StreamEvent.Meta   — first event (session_id, image_url, classification)
-     *   StreamEvent.Token  — each Gemini token as it arrives
-     *   StreamEvent.Error  — if something goes wrong
-     *   StreamEvent.Done   — when stream ends
-     *
-     * Usage (in ViewModel):
-     *   apiService.analyzeImage(imageFile, "Please analyze this lesion")
-     *     .collect { event -> when(event) { ... } }
-     */
     fun analyzeImage(imageFile: File, message: String, sessionId: String = ""): Flow<StreamEvent> =
         callbackFlow {
             val requestBody = MultipartBody.Builder()
@@ -105,17 +181,16 @@ class ApiService {
                 .build()
 
             val request = Request.Builder()
-                .url("${BuildConfig.API_BASE_URL}/analyze")
+                .url("$baseUrl/analyze")
                 .post(requestBody)
                 .build()
 
-            val call = okHttpClient.newCall(request)
-            var isFirstEvent = true   // first SSE event = metadata, rest = tokens
+            val call = sseClient.newCall(request)
+            var isFirstEvent = true
 
             call.enqueue(object : Callback {
-                override fun onFailure(call: Call, e: java.io.IOException) {
-                    trySend(StreamEvent.Error("Network error: ${e.message}"))
-                    close()
+                override fun onFailure(call: Call, e: IOException) {
+                    close(e)   // throws so retryWhen can catch it
                 }
 
                 override fun onResponse(call: Call, response: Response) {
@@ -123,21 +198,13 @@ class ApiService {
                         try {
                             while (!source.exhausted()) {
                                 val line = source.readUtf8Line() ?: break
-
-                                // SSE lines start with "data: "
                                 if (!line.startsWith("data: ")) continue
                                 val payload = line.removePrefix("data: ").trim()
 
-                                if (payload == "[DONE]") {
-                                    trySend(StreamEvent.Done)
-                                    break
-                                }
+                                if (payload == "[DONE]") { trySend(StreamEvent.Done); break }
 
-                                // Parse JSON payload
                                 val json = gson.fromJson(payload, Map::class.java)
-
                                 when {
-                                    // First event has session_id field
                                     isFirstEvent && json.containsKey("session_id") -> {
                                         val meta = gson.fromJson(payload, AnalyzeMetaEvent::class.java)
                                         trySend(StreamEvent.Meta(meta))
@@ -147,14 +214,13 @@ class ApiService {
                                         val token = json["token"] as? String ?: ""
                                         if (token.isNotEmpty()) trySend(StreamEvent.Token(token))
                                     }
-                                    json.containsKey("error") -> {
+                                    json.containsKey("error") ->
                                         trySend(StreamEvent.Error(json["error"] as? String ?: "Unknown error"))
-                                    }
                                 }
                             }
                         } catch (e: Exception) {
                             Log.e(TAG, "SSE parse error", e)
-                            trySend(StreamEvent.Error("Stream error: ${e.message}"))
+                            close(e)
                         } finally {
                             close()
                         }
@@ -162,16 +228,11 @@ class ApiService {
                 }
             })
 
-            // Cancel the OkHttp call if the Flow collector is cancelled
             awaitClose { call.cancel() }
         }
 
-    // ── /chat — text follow-up + SSE stream ──────────────────────────────────
+    // ── /chat — follow-up text + SSE stream ──────────────────────────────────
 
-    /**
-     * Send a follow-up text message and stream Gemini's response.
-     * Same SSE pattern as analyzeImage, but only emits Token/Error/Done events.
-     */
     fun sendChatMessage(
         sessionId: String,
         message:   String,
@@ -184,16 +245,15 @@ class ApiService {
         ))
 
         val request = Request.Builder()
-            .url("${BuildConfig.API_BASE_URL}/chat")
+            .url("$baseUrl/chat")
             .post(RequestBody.create("application/json".toMediaType(), body))
             .build()
 
-        val call = okHttpClient.newCall(request)
+        val call = sseClient.newCall(request)
 
         call.enqueue(object : Callback {
-            override fun onFailure(call: Call, e: java.io.IOException) {
-                trySend(StreamEvent.Error("Network error: ${e.message}"))
-                close()
+            override fun onFailure(call: Call, e: IOException) {
+                close(e)
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -217,7 +277,7 @@ class ApiService {
                             }
                         }
                     } catch (e: Exception) {
-                        trySend(StreamEvent.Error("Stream error: ${e.message}"))
+                        close(e)
                     } finally {
                         close()
                     }

@@ -28,10 +28,15 @@ import uuid
 import subprocess
 import threading
 import datetime
+import time
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from dotenv import load_dotenv
+load_dotenv()  # loads .env from the current directory (or any parent)
+
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Security
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
 # Firebase Admin SDK
@@ -107,9 +112,13 @@ class MCPClient:
         self.process       = None
         self.lock          = threading.Lock()
         self._request_id   = 0
+        self._current_url  = os.environ.get("COLAB_MODEL_URL", "")
         self._start()
 
     def _start(self):
+        env = os.environ.copy()
+        if self._current_url:
+            env["COLAB_MODEL_URL"] = self._current_url
         self.process = subprocess.Popen(
             [sys.executable, self.server_script],
             stdin=subprocess.PIPE,
@@ -117,19 +126,28 @@ class MCPClient:
             stderr=None,
             text=True,
             bufsize=1,
+            env=env,
         )
-        # MCP handshake
-        self._call("initialize", {
+        self._raw_call("initialize", {
             "protocolVersion": "2024-11-05",
             "clientInfo": {"name": "fastapi-mobile-client", "version": "1.0.0"},
             "capabilities": {},
         })
 
+    def _restart(self):
+        try:
+            self.process.kill()
+            self.process.wait(timeout=5)
+        except Exception:
+            pass
+        self._start()
+
     def _next_id(self) -> int:
         self._request_id += 1
         return self._request_id
 
-    def _call(self, method: str, params: dict) -> dict:
+    def _raw_call(self, method: str, params: dict) -> dict:
+        """Single call attempt — no retry."""
         req_id  = self._next_id()
         payload = json.dumps({"jsonrpc": "2.0", "id": req_id, "method": method, "params": params})
         with self.lock:
@@ -137,6 +155,20 @@ class MCPClient:
             self.process.stdin.flush()
             line = self.process.stdout.readline()
         return json.loads(line)
+
+    def _call(self, method: str, params: dict) -> dict:
+        """Call with up to 3 attempts, restarting the subprocess on failure."""
+        last_exc = None
+        for attempt in range(3):
+            try:
+                return self._raw_call(method, params)
+            except Exception as e:
+                last_exc = e
+                print(f"[MCP] Attempt {attempt + 1}/3 failed: {e}")
+                if attempt < 2:
+                    time.sleep(1.0 * (attempt + 1))
+                    self._restart()
+        raise RuntimeError(f"MCP call failed after 3 attempts: {last_exc}")
 
     def classify_lesion(self, image_bytes: bytes) -> dict:
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -147,6 +179,11 @@ class MCPClient:
         result_text = response["result"]["content"][0]["text"]
         return json.loads(result_text)
 
+    def update_model_url(self, url: str) -> None:
+        """Update the Colab ViT endpoint at runtime — no server restart needed."""
+        self._current_url = url.rstrip("/")
+        self._raw_call("update_model_url", {"url": self._current_url})
+
 
 mcp_client    = MCPClient(MCP_SERVER_PATH)
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -155,13 +192,13 @@ gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 # FIREBASE HELPERS
 # =============================================================================
 
-def upload_image_to_storage(image_bytes: bytes, image_id: str, content_type: str = "image/jpeg") -> str:
+def upload_image_to_storage(image_bytes: bytes, image_id: str, uid: str, content_type: str = "image/jpeg") -> str:
     """
     Upload raw image bytes to Firebase Storage.
     Returns the gs:// path (use get_download_url to get an HTTPS link).
     """
     bucket = get_bucket()
-    blob   = bucket.blob(f"lesions/{image_id}.jpg")
+    blob   = bucket.blob(f"users/{uid}/lesions/{image_id}.jpg")
     blob.upload_from_string(image_bytes, content_type=content_type)
     # Make publicly readable (or use signed URLs for private access)
     blob.make_public()
@@ -169,20 +206,23 @@ def upload_image_to_storage(image_bytes: bytes, image_id: str, content_type: str
 
 
 def save_session_to_firestore(session_id: str, image_id: str | None,
-                               classification: dict | None, messages: list) -> None:
+                               classification: dict | None, messages: list,
+                               uid: str = "") -> None:
     """
     Save or update a chat session in Firestore.
 
     Firestore structure:
       sessions/{session_id}
-        ├── created_at: timestamp
-        ├── image_id:   str | null
+        ├── user_id:        Firebase UID of the owner
+        ├── created_at:     ISO timestamp
+        ├── image_id:       str | null
         ├── classification: {label, confidence, all_scores} | null
-        └── messages: [{role, text, timestamp}, ...]
+        └── messages:       [{role, text, timestamp}, ...]
     """
     db  = get_db()
     ref = db.collection("sessions").document(session_id)
     ref.set({
+        "user_id":        uid,
         "created_at":     datetime.datetime.utcnow().isoformat(),
         "image_id":       image_id,
         "classification": classification,
@@ -206,6 +246,17 @@ def append_message_to_firestore(session_id: str, role: str, text: str) -> None:
 # FASTAPI APP
 # =============================================================================
 
+# ── Firebase Auth token verification ─────────────────────────────────────────
+
+_bearer = HTTPBearer()
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Security(_bearer)) -> dict:
+    try:
+        return firebase_admin.auth.verify_id_token(credentials.credentials)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
 app = FastAPI(
     title="DermAI Mobile API",
     description="FastAPI backend for the DermAI Android app.",
@@ -218,6 +269,10 @@ class ChatRequest(BaseModel):
     session_id: str         # ties the conversation to a Firestore document
     message:    str
     history:    list[dict]  # [{role: "user"|"assistant", text: "..."}]
+
+
+class ModelUrlRequest(BaseModel):
+    url: str
 
 
 class SessionResponse(BaseModel):
@@ -233,6 +288,7 @@ async def analyze(
     image:      UploadFile = File(...),
     message:    str        = Form(default="Please analyze this skin lesion."),
     session_id: str        = Form(default=""),
+    decoded:    dict       = Depends(verify_token),
 ):
     """
     Main endpoint called by the Android app when the user sends an image.
@@ -247,6 +303,7 @@ async def analyze(
     Returns: text/event-stream  (SSE tokens)
     """
     # Generate IDs
+    uid         = decoded.get("uid", "")
     image_id    = str(uuid.uuid4())
     sid         = session_id or str(uuid.uuid4())
     image_bytes = await image.read()
@@ -307,7 +364,7 @@ async def analyze(
 
     # ── 1. Upload image to Firebase Storage ──────────────────────────────────
     try:
-        image_url = upload_image_to_storage(image_bytes, image_id, image.content_type)
+        image_url = upload_image_to_storage(image_bytes, image_id, uid, image.content_type)
     except Exception as e:
         image_url = None
         print(f"[Storage] Upload failed: {e}")
@@ -337,6 +394,7 @@ async def analyze(
             classification=classification,
             messages=[{"role": "user", "text": message,
                        "timestamp": datetime.datetime.utcnow().isoformat()}],
+            uid=uid,
         )
     except Exception as e:
         print(f"[Firestore] Save failed: {e}")
@@ -384,7 +442,7 @@ async def analyze(
 
 
 @app.post("/chat")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, _token: None = Depends(verify_token)):
     """
     Continue a conversation without a new image.
     Called by the Android app for follow-up messages.
@@ -463,20 +521,29 @@ async def get_history(session_id: str):
 
 
 @app.get("/sessions")
-async def list_sessions(limit: int = 20):
+async def list_sessions(limit: int = 20, decoded: dict = Depends(verify_token)):
     """
-    List recent sessions (for history screen in Android app).
+    List the authenticated user's sessions (for history screen in Android app).
     Returns newest-first, limited to `limit` results.
     """
     try:
+        uid  = decoded.get("uid", "")
         db   = get_db()
         docs = (db.collection("sessions")
+                  .where("user_id", "==", uid)
                   .order_by("created_at", direction=firestore.Query.DESCENDING)
                   .limit(limit)
                   .stream())
         return [{"session_id": d.id, **d.to_dict()} for d in docs]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/model-url")
+async def set_model_url(body: ModelUrlRequest):
+    """Update the Colab ViT model URL without restarting the server."""
+    mcp_client.update_model_url(body.url)
+    return {"status": "updated", "url": body.url}
 
 
 @app.get("/health")
