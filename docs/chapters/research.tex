@@ -1,0 +1,309 @@
+% =============================================================================
+% 3. fejezet — Kutatási rész: a bőrelváltozás-osztályozó modell
+% -----------------------------------------------------------------------------
+% MÓDSZERTAN kész. Az EREDMÉNYEK szekció táblázatai/ábrái placeholderek,
+% amelyeket a végleges v4 ViT és ResNet-18 futtatások kimenetéből kell kitölteni
+% (metrics_final.json, training_curves.png, roc_curve_test.png).
+% =============================================================================
+
+Ez a fejezet a bőrelváltozás-osztályozó modell fejlesztését és kiértékelését
+mutatja be. Először az ISIC 2024 adathalmaz előkészítését ismertetjük, majd a
+Vision Transformer modellt és annak tanítási folyamatát, ezt követően a két
+viszonyítási alapot (a ResNet-18 konvolúciós hálót és a Gemini nagy nyelvi
+modellt), végül a kísérleti elrendezést és az elért eredményeket.
+
+% =============================================================================
+\section{Az ISIC 2024 adathalmaz és előkészítése}
+% =============================================================================
+
+A kísérletekhez az ISIC 2024 verseny (\textit{Skin Cancer Detection with 3D-TBP})
+nyilvános tanító adathalmazát használtuk \cite{isic2024}. Az adathalmaz a teljes
+testfelszín háromdimenziós fényképezéséből kivágott, mintegy 401~000
+bőrelváltozás-felvételt tartalmaz, amelyek mindegyikéhez bináris címke tartozik
+(jó\-indulatú vagy rosszindulatú). Az adathalmaz meghatározó tulajdonsága a
+rendkívül erős osztály-egyensúlytalanság: a rosszindulatú esetek száma mindössze
+393, ami megközelítőleg $1{:}1000$ pozitív--negatív arányt jelent.
+
+A v3 előzetes kísérletektől eltérően -- amelyek a többségi (jóindulatú) osztály
+50\%-os aldmintázásával dolgoztak -- a végleges modellt a \textbf{teljes}
+adathalmazon tanítottuk, hogy a negatív osztály teljes változatosságát
+kihasználjuk. Az adathalmazt rétegzett (stratifikált) módon, rögzített
+véletlenmaggal ($seed = 42$) osztottuk fel tanító, validációs és teszthalmazra
+$70{:}15{:}15$ arányban; a teszthalmazt a tanítás teljes folyamata alatt
+érintetlenül hagytuk, és kizárólag a végső kiértékeléshez használtuk fel. A
+felosztás eredményét a \ref{tab:split}.~táblázat foglalja össze.
+
+\begin{table}[H]
+  \centering
+  \caption{Az ISIC 2024 adathalmaz rétegzett felosztása (teljes adathalmaz, $seed=42$).}
+  \label{tab:split}
+  \begin{tabular}{lrr}
+    \hline
+    \textbf{Részhalmaz} & \textbf{Összes kép} & \textbf{Rosszindulatú (pozitív)} \\
+    \hline
+    Tanító (train)      & 280\,741 & 275 \\
+    Validációs (val)    & 60\,159  & 59  \\
+    Teszt (test)        & 60\,159  & 59  \\
+    \hline
+    \textbf{Összesen}   & 401\,059 & 393 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+% =============================================================================
+\section{A Vision Transformer modell}
+% =============================================================================
+
+A fő modell egy ImageNet-en előtanított Vision Transformer
+(\texttt{vit\_base\_patch16\_224}) \cite{dosovitskiy2021vit}, amelyet a
+\texttt{timm} könyvtárból \cite{wightman2019timm} töltöttünk be. A törzsháló a
+$224 \times 224$ pixeles bemenetből egy 768 dimenziós reprezentációt állít elő,
+amelyre egy egyedi osztályozó fejet illesztettünk: rétegnormalizálás, dropout
+($p=0{,}3$), egy 256 neuronos lineáris réteg GELU aktivációval, majd egy újabb
+dropout ($p=0{,}2$) és a kétosztályos kimeneti réteg.
+
+\subsection{Kétfázisú tanítás}
+
+A modellt két fázisban tanítottuk, hogy egyszerre kezeljük az
+osztály-egyensúlytalanságot és a kimeneti valószínűségek kalibrációját:
+
+\begin{itemize}
+  \item \textbf{1. fázis -- kiegyensúlyozott tanítás.} Súlyozott
+  mintavételezéssel (\texttt{WeightedRandomSampler}) közel $1{:}1$ arányú
+  batch-eket állítottunk elő, így a ritka pozitív esetek a tanítás során
+  felülreprezentálttá váltak. A veszteségfüggvény súlyozott fókuszveszteség
+  \cite{lin2017focal} volt.
+  \item \textbf{2. fázis -- kalibráció.} A modellt a valós, erősen
+  kiegyensúlyozatlan eloszlású adaton, tizedére csökkentett tanulási rátával
+  tanítottuk tovább, hogy a kimeneti valószínűségek a tényleges priorhoz
+  igazodjanak.
+\end{itemize}
+
+\subsection{Az osztály-egyensúlytalanság kezelése}
+
+Az egyensúlytalanságot három, egymást kiegészítő technikával kezeltük: (i)
+súlyozott mintavételezés a kiegyensúlyozott batch-ekhez; (ii) súlyozott
+fókuszveszteség, amely a nehéz, félreosztályozott eseteket helyezi előtérbe
+(\ref{eq:focal}. egyenlet, $\alpha = 0{,}25$, $\gamma = 2{,}0$, a pozitív
+osztály súlya $7{,}0$); valamint (iii) a kisebbségi osztályra alkalmazott
+erősebb képaugmentáció. A számítási költség kézben tartására az 1. fázis
+epochonkénti mintaszámát 50~000-re korlátoztuk; mivel a kiegyensúlyozott
+mintavételezés a 275 pozitív esetet erősen felülmintázza, ez a korlátozás a
+tanítási stratégiát érdemben nem befolyásolja, viszont gyakoribb validációt és
+korai leállítást tesz lehetővé.
+
+\subsection{Adataugmentáció}
+
+A túltanulás csökkentésére tanítás közben véletlenszerű augmentációt
+alkalmaztunk. A többségi (jóindulatú) osztályra alapszintű transzformációkat --
+vízszintes és függőleges tükrözés, elforgatás, szín-jitter és affin torzítás --,
+a kisebbségi (rosszindulatú) osztályra ezeknél erősebb augmentációt (nagyobb
+szögű forgatás, erősebb szín-jitter, perspektivikus torzítás, elmosás)
+használtunk, hogy az egyes pozitív példák minél több, eltérő változatban
+kerüljenek a modell elé. A validációs és teszthalmazon nem alkalmaztunk
+augmentációt, biztosítva a determinisztikus, reprodukálható kiértékelést.
+
+\subsection{Hiperparaméterek}
+
+A tanítás hiperparamétereit a \ref{tab:hyperparams}.~táblázat foglalja össze. Az
+optimalizáló AdamW volt, differenciált tanulási rátával (a törzsháló kisebb, a
+fej nagyobb rátát kapott), háromepochos lineáris bemelegítéssel, amelyet koszinusz
+ütemezésű csökkentés követett. A tanítás vegyes pontosságú (mixed precision)
+módban, gradiens-akkumulációval futott, az effektív batch-méret 128 volt.
+
+\begin{table}[H]
+  \centering
+  \caption{A ViT modell tanításának fő hiperparaméterei.}
+  \label{tab:hyperparams}
+  \begin{tabular}{ll}
+    \hline
+    \textbf{Paraméter} & \textbf{Érték} \\
+    \hline
+    Architektúra            & \texttt{vit\_base\_patch16\_224} (ImageNet-előtanított) \\
+    Bemeneti felbontás      & $224 \times 224$ \\
+    Batch-méret             & 32 (effektív 128, grad.\ akkumuláció $\times 4$) \\
+    Optimalizáló            & AdamW, súlycsökkenés $10^{-2}$ \\
+    Tanulási ráta (törzs)   & $2 \times 10^{-6}$ \\
+    Tanulási ráta (fej)     & $2 \times 10^{-5}$ \\
+    Ütemezés                & 3 epoch warmup + koszinusz csökkenés \\
+    1.\ fázis epochszám     & 18 (korai leállítás, türelem $=5$) \\
+    2.\ fázis epochszám     & 3 (kalibráció) \\
+    Mintaszám / epoch       & 50\,000 \\
+    Fókuszveszteség         & $\alpha = 0{,}25$, $\gamma = 2{,}0$, pozitív súly $= 7{,}0$ \\
+    \hline
+  \end{tabular}
+\end{table}
+
+% =============================================================================
+\section{A ResNet-18 viszonyítási alap}
+% =============================================================================
+
+Az architektúra szerepének izolálására egy konvolúciós viszonyítási alapot is
+betanítottunk: egy ImageNet-en előtanított ResNet-18 hálót \cite{he2016resnet}.
+A kísérlet kontrollált jellegű: a ResNet-18 \textbf{pontosan ugyanazt} a
+feldolgozási folyamatot használja, mint a ViT -- azonos adatfelosztás (azonos
+véletlenmaggal, így azonos teszthalmaz), azonos egyensúlytalanság-kezelés,
+azonos kiértékelési protokoll --, így a két modell közötti teljesítménykülönbség
+kizárólag az architektúrának (konvolúció kontra figyelem) tulajdonítható. A
+ResNet-18 lényegesen kevesebb paraméterrel rendelkezik, mint a ViT-Base, és
+mivel a konvolúciós hálók nagyobb tanulási rátát viselnek el a finomhangolás
+során, a törzsháló, illetve a fej tanulási rátáját $1 \times 10^{-5}$, illetve
+$1 \times 10^{-4}$ értékre emeltük; minden egyéb beállítás megegyezett a ViT-ével.
+
+% =============================================================================
+\section{A Gemini zero-shot viszonyítási alap}
+% =============================================================================
+
+Második viszonyítási alapként a Google Gemini multimodális nagy nyelvi modelljét
+\cite{gemini2023} (a \texttt{gemini-2.5-flash} változatot) értékeltük
+\textit{zero-shot} módban, azaz célzott betanítás nélkül. A modell minden képhez
+egy minimális szöveges utasítást kapott, amely a rosszindulatúság
+valószínűségének $[0,1]$ skálán történő becslésére kérte; sem példákat
+(few-shot), sem klinikai metaadatot nem adtunk a bemenethez. Mivel a Gemini
+API-alapú, soronkénti lekérdezése a teljes, mintegy 60~000 elemű teszthalmazon
+költséges és lassú lenne, a Gemini-kiértékelést egy 2~000 képes részhalmazon
+végeztük, amely a teszthalmaz \textbf{összes} pozitív esetét és véletlenszerűen
+mintavételezett negatív eseteket tartalmazott; a tisztességes összehasonlítás
+érdekében a ViT modellt ugyanezen a részhalmazon is kiértékeltük.
+
+A Gemini szerepe a dolgozatban kettős szempontból tanulságos: egyrészt
+megmutatja, mire képes egy általános célú, célzott betanítás nélküli multimodális
+modell ezen a feladaton, másrészt rávilágít a célzottan betanított, kalibrált
+osztályozó modell előnyeire -- összhangban a szakirodalmi megfigyelésekkel
+\cite{cirone2024llm}.
+
+% =============================================================================
+\section{Kísérleti elrendezés}
+% =============================================================================
+
+A modelleket a Kaggle felhőplatformján, NVIDIA Tesla T4 GPU-n tanítottuk és
+értékeltük. Az implementáció a PyTorch keretrendszerre \cite{paszke2019pytorch}, a
+modellek betöltése a \texttt{timm} könyvtárra \cite{wightman2019timm}, a metrikák
+és statisztikai számítások pedig a scikit-learn könyvtárra
+\cite{pedregosa2011sklearn} épültek. A reprodukálhatóság érdekében minden
+véletlenszerű folyamatot rögzített maggal ($seed = 42$) inicializáltunk.
+
+A kiértékelést két klinikailag értelmezhető \textit{működési ponton} végeztük: a
+$\ge 0{,}90$ érzékenységnél (klinikai szűrési standard) és a $\ge 0{,}80$
+érzékenységnél (az ISIC 2024 verseny pAUC-küszöbe). A döntési küszöböt minden
+esetben a validációs halmazon kalibráltuk, majd a rögzített küszöböt alkalmaztuk
+a teszthalmazon. A teljesítményt a \ref{eq:sens-spec}--\ref{eq:ppv-npv}.
+egyenletekben definiált metrikákkal, az AUC-val és a hivatalos ISIC 2024 pAUC-val
+mértük; a pontbecslések bizonytalanságát Clopper--Pearson-féle (arányok) és
+DeLong-féle (AUC) konfidencia-intervallumokkal \cite{sun2014delong} jelöltük, a
+modellek közötti AUC-különbségeket pedig a DeLong-féle páros teszttel
+vizsgáltuk. A valószínűségi kalibrációt a Brier-pontszámmal
+\cite{guo2017calibration} jellemeztük.
+
+% =============================================================================
+\section{Eredmények}
+% =============================================================================
+
+% -----------------------------------------------------------------------------
+% FIGYELEM (Ervin): az alábbi táblázatok és ábrák PLACEHOLDEREK.
+% A számértékeket a végleges futtatások kimenetéből töltsd ki:
+%   - resnet18_metrics_final.json / (vit) metrics_final.json
+%   - training_curves.png, roc_curve_test.png
+% A "--" cellák helyére kerülnek a tényleges értékek.
+% -----------------------------------------------------------------------------
+
+Ebben a szakaszban a ViT modell teljesítményét értékeljük a teszthalmazon, majd
+összevetjük a ResNet-18 és a Gemini viszonyítási alapokkal.
+
+\subsection{A tanítás konvergenciája}
+
+A \ref{fig:training-curves}.~ábra a tanítás során mért veszteség, AUC és pAUC
+alakulását mutatja epochonként, a validációs halmazon.
+
+% MEGJEGYZÉS (Ervin): cseréld le az alábbi placeholdert a notebook által generált
+% ábrára. A megfelelő includegraphics sor (a fájl figures/ mappába másolása után):
+% \includegraphics[width=\textwidth]{images/results/training_curves.png}
+\begin{figure}[H]
+  \centering
+  \fbox{\begin{minipage}[c][4cm][c]{0.85\textwidth}
+    \centering\itshape
+    [Ábra helye] -- A tanítási veszteség, valamint a validációs AUC és pAUC
+    alakulása az epochok függvényében (\texttt{training\_curves.png}).
+  \end{minipage}}
+  \caption{A ViT modell tanításának konvergenciája.}
+  \label{fig:training-curves}
+\end{figure}
+
+\subsection{A ViT teljesítménye a teszthalmazon}
+
+A \ref{tab:vit-results}.~táblázat a ViT modell teljesítményét foglalja össze a
+két működési ponton.
+
+\begin{table}[H]
+  \centering
+  \caption{A ViT modell teljesítménye a teszthalmazon, két működési ponton. [Kitöltendő a végleges futtatásból.]}
+  \label{tab:vit-results}
+  \begin{tabular}{lcc}
+    \hline
+    \textbf{Metrika} & \textbf{Érzékenység $\ge 0{,}90$} & \textbf{Érzékenység $\ge 0{,}80$} \\
+    \hline
+    AUC (95\% CI)        & -- & -- \\
+    pAUC (TPR $\ge 0{,}80$) & -- & -- \\
+    Érzékenység (95\% CI) & -- & -- \\
+    Specificitás (95\% CI) & -- & -- \\
+    PPV / NPV             & -- & -- \\
+    Brier-pontszám        & -- & -- \\
+    \hline
+  \end{tabular}
+\end{table}
+
+A \ref{fig:roc}.~ábra a ViT modell ROC-görbéjét mutatja, kiemelve a pAUC
+számításához használt, $TPR \ge 0{,}80$ tartományt.
+
+% MEGJEGYZÉS (Ervin): includegraphics sor a fájl bemásolása után:
+% \includegraphics[width=0.7\textwidth]{images/results/roc_curve_test.png}
+\begin{figure}[H]
+  \centering
+  \fbox{\begin{minipage}[c][4cm][c]{0.85\textwidth}
+    \centering\itshape
+    [Ábra helye] -- A ViT modell ROC-görbéje a teszthalmazon, a pAUC tartomány
+    kiemelésével (\texttt{roc\_curve\_test.png}).
+  \end{minipage}}
+  \caption{A ViT modell ROC-görbéje.}
+  \label{fig:roc}
+\end{figure}
+
+\subsection{Összehasonlítás a viszonyítási alapokkal}
+
+A \ref{tab:comparison}.~táblázat a három modellt -- a ViT-et, a ResNet-18
+konvolúciós alapot és a Gemini zero-shot modellt -- veti össze a közös
+teszt-részhalmazon, az AUC mint közvetlenül összehasonlítható mérőszám mentén.
+
+\begin{table}[H]
+  \centering
+  \caption{A három modell összehasonlítása a közös teszt-részhalmazon. [Kitöltendő a végleges futtatásból.]}
+  \label{tab:comparison}
+  \begin{tabular}{lccc}
+    \hline
+    \textbf{Modell} & \textbf{AUC} & \textbf{Érzékenység} & \textbf{Specificitás} \\
+    \hline
+    ResNet-18 (CNN, viszonyítási alap)   & -- & -- & -- \\
+    Gemini 2.5 Flash (zero-shot)         & -- & -- & -- \\
+    ViT-Base (saját, finomhangolt)       & -- & -- & -- \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\subsection{Statisztikai elemzés}
+
+% MEGJEGYZÉS (Ervin): ide kerül a DeLong-teszt eredménye (z, p) a ViT vs ResNet-18
+% és a ViT vs Gemini összehasonlításra, valamint a konfidencia-intervallumok
+% értelmezése. Kitöltendő a végleges futtatásból.
+A modellek közötti AUC-különbségek statisztikai szignifikanciáját a DeLong-féle
+páros teszttel vizsgáltuk; az eredményeket és azok értelmezését a végleges
+futtatások alapján egészítjük ki. \textit{[Az értékek a végleges futtatásból
+kerülnek be.]}
+
+\subsection{Az eredmények megbeszélése és korlátai}
+
+% MEGJEGYZÉS (Ervin): ezt a részt a tényleges számok birtokában véglegesítjük.
+Az eredmények értelmezésekor figyelembe kell venni a teszthalmaz korlátozott
+pozitív elemszámát (59 rosszindulatú eset), amely a metrikák -- különösen az
+érzékenység és a pAUC -- becslését érzékennyé teszi a mintavételi zajra; ezt a
+bizonytalanságot a megadott konfidencia-intervallumok tükrözik. A részletes
+megbeszélés a végleges eredmények birtokában kerül kidolgozásra.

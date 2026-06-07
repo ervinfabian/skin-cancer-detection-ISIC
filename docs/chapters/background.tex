@@ -1,0 +1,489 @@
+% =============================================================================
+% 2. fejezet — Szakirodalom és elméleti háttér
+% -----------------------------------------------------------------------------
+% A) SZAKIRODALOM (ez a rész)
+% B) ELMÉLETI HÁTTÉR — a következő lépésben kerül a fájl végére
+% =============================================================================
+
+Ez a fejezet két nagyobb egységből áll. Az első rész a bőrelváltozások
+gépi tanulással történő osztályozásának szakirodalmi előzményeit tekinti át --
+a klinikai diagnosztikai gyakorlattól a klasszikus gépi tanuláson és a
+konvolúciós neurális hálókon át a Vision Transformer és a multimodális nagy
+nyelvi modellek megjelenéséig. A második rész a dolgozatban felhasznált
+kulcstechnológiák elméleti hátterét ismerteti.
+
+% =============================================================================
+\section{A bőrrák és a korai diagnózis jelentősége}
+% =============================================================================
+
+A bőrrák a leggyakrabban diagnosztizált rosszindulatú daganatok közé tartozik
+világszerte. A Nemzetközi Rákkutató Ügynökség (IARC) GLOBOCAN-becslései szerint
+2022-ben több mint 1,5 millió új bőrrákos esetet regisztráltak, ezen belül a
+melanomák száma megközelítőleg 331~700 volt, mintegy 58~700 halálesettel
+\cite{iarc2022melanoma}. Bár a melanoma a bőrrákos esetek kisebb hányadát teszi
+ki, agresszív viselkedése és áttétképző hajlama miatt a bőrrák okozta halálozás
+túlnyomó részéért felel.
+
+A betegség kimenetele döntően a felismerés stádiumától függ. A még lokalizált
+stádiumban diagnosztizált melanoma ötéves relatív túlélési aránya közel 100\%,
+míg távoli áttét megjelenése esetén ez mintegy 35\%-ra csökken
+\cite{seer2024melanoma}. Ez a markáns különbség teszi a korai felismerést
+népegészségügyi szempontból kiemelten fontossá: a diagnózis néhány hónapos
+késedelme is jelentősen ronthatja a beteg túlélési esélyeit.
+
+\subsection{A klinikai diagnosztikai folyamat}
+
+A melanoma klinikai gyanúja jellemzően vizuális vizsgálat alapján merül fel,
+amelyet dermatoszkópos értékelés egészít ki; a végleges diagnózist minden
+esetben szövettani vizsgálat (hisztopatológia) erősíti meg \cite{garbe2022melanoma}.
+A magas kockázatú betegek nyomon követésében a szekvenciális digitális
+dermatoszkópia és a teljes testfelszín fényképezése segíti a korai melanomák
+kiszűrését \cite{garbe2022melanoma}. Ez a folyamat magas szintű szakmai
+tapasztalatot és speciális eszközöket igényel.
+
+A pigmentált bőrelváltozások szabad szemmel történő, gyors megítélését a
+klinikai gyakorlatban az úgynevezett ABCDE-szabály támogatja. A betűszó a
+melanomára jellemző öt figyelmeztető jegyet foglalja össze: aszimmetria
+(\textit{Asymmetry}), szabálytalan határvonal (\textit{Border}), színbeli
+heterogenitás (\textit{Color}), 6~mm-t meghaladó átmérő (\textit{Diameter}),
+valamint az elváltozás időbeli változása (\textit{Evolving}); az utóbbi, ötödik
+kritériummal Abbasi és munkatársai egészítették ki az eredeti ABCD-szabályt,
+hangsúlyozva a fejlődő elváltozások jelentőségét \cite{abbasi2004abcde}. Az
+ABCDE-szabály egyszerűsége miatt mind a szakemberek, mind a betegek számára jól
+használható, ugyanakkor önmagában nem helyettesíti a műszeres és szövettani
+vizsgálatot.
+
+% MEGJEGYZÉS (Ervin): ide jól illene egy ábra az ABCDE-szabály szemléltetésére
+% (pl. benignus vs. malignus elváltozások összehasonlítása). Ha van megfelelő,
+% jogtiszta képed, cseréld le az alábbi placeholder dobozt.
+\begin{figure}[H]
+  \centering
+  \fbox{\begin{minipage}[c][4cm][c]{0.85\textwidth}
+    \centering\itshape
+    [Ábra helye] -- Az ABCDE-szabály szemléltetése: jóindulatú és rosszindulatú
+    pigmentált elváltozások összehasonlítása. (Saját vagy jogtiszta forrásból
+    származó ábrát illessz be.)
+  \end{minipage}}
+  \caption{Az ABCDE-szabály vizuális kritériumai.}
+  \label{fig:abcde}
+\end{figure}
+
+\subsection{A hozzáférés korlátai}
+
+A bőrgyógyászati szakellátáshoz való hozzáférés világszerte egyenetlen.
+Vidéki térségekben és alacsonyabb jövedelmű országokban a szakorvosi
+kapacitás korlátozott, ami késedelmes diagnózishoz vezet; de még fejlett
+egészségügyi rendszerekben is jelentős várakozási idővel kell számolni a
+szakvizsgálatig. Ez a hozzáférési szakadék motiválja az olyan automatizált,
+akár okostelefonon is futó szűrőeszközök fejlesztését, amelyek elsődleges
+triázsként jelezhetik, ha egy elváltozás szakorvosi vizsgálatot indokol.
+
+% =============================================================================
+\section{Klasszikus gépi tanulás a bőrelváltozások osztályozásában}
+% =============================================================================
+
+A mélytanulás elterjedése előtt a bőrelváltozás-osztályozó rendszerek jellemzően
+kétlépcsős felépítést követtek: először kézzel tervezett jellemzőket
+(\textit{handcrafted features}) nyertek ki a képből, majd ezeken egy klasszikus
+gépi tanulási osztályozót -- például tartóvektor-gépet (SVM), döntési fát vagy
+véletlen erdőt (Random Forest) -- tanítottak be. A jellemzők gyakran közvetlenül
+az orvosi szempontokat tükrözték: az ABCDE-szabályhoz kapcsolódó alaki
+(aszimmetria, határvonal), színbeli (szín-momentumok, hisztogramok) és textúra
+jellemzőket (például a szürkeszintű együttes előfordulási mátrixból, GLCM
+számított mutatókat).
+
+Kassem és munkatársai szisztematikus áttekintése a terület módszertani
+fejlődését dokumentálja, és rámutat, hogy a klasszikus, kézi jellemzőkön alapuló
+megközelítések teljesítményét erősen korlátozza a jellemzőtervezés minősége és a
+felvételi körülmények (megvilágítás, felbontás, műtermékek) iránti
+érzékenység \cite{kassem2021review}. Ezek a rendszerek jellemzően jól
+kontrollált, dermatoszkópos felvételeken működtek megbízhatóan, általánosító
+képességük azonban korlátozott maradt. Mindazonáltal a kézi jellemzőkön alapuló
+osztályozók a mai napig értékes \textit{viszonyítási alapként} (baseline)
+szolgálnak, mivel gyorsak, értelmezhetők, és megmutatják, mekkora teljesítmény
+érhető el a reprezentáció automatikus tanulása nélkül.
+
+% =============================================================================
+\section{A mély tanulás megjelenése: konvolúciós neurális hálók}
+% =============================================================================
+
+A konvolúciós neurális hálók (CNN-ek) áttörést hoztak a képosztályozásban azzal,
+hogy a jellemzőkinyerést és az osztályozást egyetlen, végponttól végpontig
+tanítható modellbe integrálták, megszüntetve a kézi jellemzőtervezés
+szükségességét. A bőrgyógyászati alkalmazások egyik úttörő munkájában Esteva és
+munkatársai kimutatták, hogy egy nagy képadatbázison előtanított CNN a bőrrák
+osztályozásában eléri a tapasztalt dermatológusok teljesítményét
+\cite{esteva2017dermatologist}. Ezt követően több vizsgálat is megerősítette,
+hogy a mélytanulás-alapú rendszerek megközelíthetik, sőt bizonyos, jól
+körülhatárolt feladatokban meg is haladhatják az emberi szakértők
+teljesítményét: Haenssle és munkatársai egy CNN-t 58 dermatológussal vetettek
+össze dermatoszkópos melanoma-felismerésben \cite{haenssle2018man}, Brinker és
+munkatársai pedig arról számoltak be, hogy mély neurális hálók a melanoma
+képi osztályozásában felülmúlták a bevont bőrgyógyászokat \cite{brinker2019deep}.
+
+E rendszerek teljesítményének kulcsa az \textit{átviteli tanulás} (transfer
+learning): a modelleket először egy nagy, általános képadatbázison -- jellemzően
+az ImageNet adathalmazon \cite{russakovsky2015imagenet} -- tanítják be, majd a
+megtanult vizuális reprezentációkat a jóval kisebb orvosi adathalmazra finomítják
+(fine-tuning). Az architektúrák fejlődése szintén hozzájárult az eredmények
+javulásához: a reziduális kapcsolatokat bevezető ResNet \cite{he2016resnet}
+lehetővé tette a nagyon mély hálók stabil tanítását, az EfficientNet pedig a
+hálózat mélységének, szélességének és felbontásának együttes, kiegyensúlyozott
+skálázásával ért el kedvező teljesítmény-paraméterszám arányt
+\cite{tan2019efficientnet}.
+
+A korai rendszerek fontos korlátja volt, hogy elsősorban dermatoszkópos, nagy
+felbontású klinikai felvételeken működtek megbízhatóan, amelyek elkészítéséhez
+speciális eszköz és szakértelem szükséges. Emellett a szelekciós torzítás is
+jelentős problémát jelentett: az elérhető adathalmazok döntően már szakorvoshoz
+került, klinikailag gyanús elváltozásokat tartalmaztak, ami tovább korlátozta a
+modellek általánosíthatóságát hétköznapi felvételekre.
+
+% =============================================================================
+\section{A Vision Transformer és a figyelmi mechanizmus}
+% =============================================================================
+
+A természetesnyelv-feldolgozásban bevezetett Transformer-architektúra a
+\textit{figyelmi} (attention) mechanizmusra épül, amely a bemenet elemei közötti
+összes páronkénti kapcsolatot képes közvetlenül modellezni, függetlenül azok
+távolságától \cite{vaswani2017attention}. Ezt az elvet a képosztályozásra a
+Vision Transformer (ViT) ültette át: a képet rögzített méretű foltokra
+(\textit{patch}) bontja, ezeket lineárisan beágyazza, majd egy Transformer-kódoló
+dolgozza fel őket \cite{dosovitskiy2021vit}. A konvolúciós hálókkal szemben a ViT
+nem rendelkezik beépített képi induktív torzítással (mint a lokalitás vagy az
+eltolás-invariancia), így a globális összefüggéseket rugalmasabban tanulja meg,
+cserébe viszont jellemzően nagyobb tanítóadatra vagy erőteljes előtanításra van
+szüksége a jó általánosításhoz \cite{dosovitskiy2021vit}.
+
+A ViT-architektúra a bőrgyógyászati képosztályozásban is megjelent. Dagnaw és
+munkatársai például Vision Transformer és konvolúciós modelleket vetettek össze
+magyarázható mesterséges intelligencia (XAI) technikákkal kiegészítve, és a
+ViT-alapú, illetve a CNN-alapú modellek esetében hasonló nagyságrendű pontosságot
+mértek \cite{dagnaw2024vit}. Ez a megfigyelés alátámasztja, hogy a két
+architektúracsalád összevetése -- pontosan kontrollált, azonos adat- és
+tanítási feltételek mellett -- önmagában is érdemi tudományos kérdés, amelyre a
+dolgozat kutatási része is kitér.
+
+% =============================================================================
+\section{Az ISIC adathalmazok és versenyek}
+% =============================================================================
+
+A bőrelváltozás-osztályozás kutatását jelentősen előmozdította az annotált,
+nyilvánosan elérhető adathalmazok megjelenése. A HAM10000 adathalmaz 10~015,
+több forrásból származó dermatoszkópos felvételt tartalmaz a gyakori pigmentált
+elváltozásokról, és egységes kiértékelési keretet biztosított a kutatóknak
+\cite{tschandl2019ham10000}. A Nemzetközi Bőrképalkotási Együttműködés (ISIC)
+versenysorozata tovább bővítette az elérhető képanyagot; Rotemberg és
+munkatársai egy beteg-központú, a képek mellett klinikai metaadatokat is
+tartalmazó adathalmazt mutattak be, hangsúlyozva a klinikai kontextus
+szerepét a melanoma azonosításában \cite{rotemberg2021isic}.
+
+A jelen dolgozat szempontjából kiemelt jelentőségű az ISIC 2024 verseny
+(\textit{Skin Cancer Detection with 3D-TBP}), amely a teljes testfelszín
+háromdimenziós fényképezéséből (3D total-body photography) kivágott, mintegy
+400~000 elváltozás-képet tartalmaz, és binárisan -- rosszindulatú vagy
+jó\-indulatú-to-intermedier kategóriába -- történő osztályozást tűz ki célul
+\cite{isic2024}. Ezek a kivágott felvételek minőségükben közelebb állnak a
+hétköznapi, akár okostelefonnal készíthető képekhez, mint a klasszikus,
+nagy felbontású dermatoszkópos felvételek, ami a valós felhasználási
+helyzethez közelíti a feladatot.
+
+Az ISIC 2024 adathalmaz egyik meghatározó jellemzője a rendkívül erős
+\textit{osztály-egyensúlytalanság}: a rosszindulatú esetek a teljes adathalmaznak
+csupán töredékét (nagyságrendileg ezredrészét) teszik ki. Ennek megfelelően a
+verseny nem a hagyományos pontosságot, hanem a 80\%-os érzékenység (true positive
+rate) feletti tartományra korlátozott, részleges görbe alatti területet (partial
+AUC) használja elsődleges metrikaként, amely orvosilag releváns módon a magas
+érzékenységi tartományban méri a modellek teljesítményét \cite{isic2024}. Az
+osztály-egyensúlytalanság kezelésének módszertani hátterét, valamint a
+kiértékelési metrikák pontos definícióját e fejezet elméleti része tárgyalja
+részletesen.
+
+% MEGJEGYZÉS (Ervin): ide illeszthető néhány példakép az ISIC 2024 adathalmazból
+% (jó- és rosszindulatú elváltozások). A versenyadat licencfeltételeit ellenőrizd
+% a beillesztés előtt.
+\begin{figure}[H]
+  \centering
+  \fbox{\begin{minipage}[c][4cm][c]{0.85\textwidth}
+    \centering\itshape
+    [Ábra helye] -- Példák az ISIC 2024 adathalmazból: jóindulatú (felső sor) és
+    rosszindulatú (alsó sor) bőrelváltozások 3D-TBP kivágott felvételei.
+  \end{minipage}}
+  \caption{Reprezentatív minták az ISIC 2024 adathalmazból.}
+  \label{fig:isic-samples}
+\end{figure}
+
+% =============================================================================
+\section{Multimodális nagy nyelvi modellek a bőrgyógyászatban}
+% =============================================================================
+
+A legutóbbi években a multimodális nagy nyelvi modellek (multimodal large
+language models, MLLM-ek) megjelenése új lehetőségeket nyitott az orvosi
+képértelmezésben. Ezek a modellek -- mint a Google Gemini-családja
+\cite{gemini2023} -- egyszerre képesek képi és szöveges bemenet feldolgozására,
+és természetes nyelvű magyarázatot, indoklást is tudnak generálni.
+
+A bőrgyógyászati alkalmazásukat több vizsgálat is értékelte. Cirone és
+munkatársai a GPT-4~Vision és a LLaVA modelleket vetették össze melanoma és
+jóindulatú elváltozások megkülönböztetésében, és azt találták, hogy a GPT-4V
+lényegesen jobban teljesített (85\% pontosság a LLaVA 45\%-ával szemben),
+ugyanakkor mindkét modell teljesítménye érzékelhetően romlott a sötétebb
+bőrtónusok esetén -- ami a reprezentációs torzítás kockázatára és a sokszínűbb
+adathalmazok szükségességére hívja fel a figyelmet \cite{cirone2024llm}. Zhou és
+munkatársai célzottan bőrgyógyászati rendszert építettek (SkinGPT-4), amelyben
+egy előtanított Vision Transformert egy nagy nyelvi modellel kapcsoltak össze,
+és valós eseteken értékelték autonóm diagnosztikai képességét
+\cite{zhou2024skingpt4}.
+
+E munkák tanulsága kettős. Egyrészt a multimodális nyelvi modellek erőssége a
+természetes nyelvű magyarázat és a felhasználóval folytatott párbeszéd, nem pedig
+a megbízható, kalibrált osztályozás -- különösen erős
+osztály-egyensúlytalanság mellett. Másrészt a teljesítményük populációk közötti
+egyenetlensége óvatosságra int a klinikai felhasználásban. Ezek a megfontolások
+közvetlenül indokolják a jelen dolgozatban követett tervezési döntést: a
+\textit{klasszifikációt} egy célzottan betanított, kalibrált képi modell (ViT)
+végzi, míg a nagy nyelvi modell (Gemini) szerepe a kép minőségének ellenőrzésére,
+az eredmény közérthető magyarázatára és a felhasználói kérdések megválaszolására
+korlátozódik. E munkamegosztás részletes tárgyalása és empirikus alátámasztása a
+dolgozat kutatási, illetve mérnöki részében található.
+
+% =============================================================================
+% B) ELMÉLETI HÁTTÉR
+% =============================================================================
+
+A fejezet hátralévő része a dolgozatban felhasznált kulcstechnológiák elméleti
+hátterét ismerteti: a figyelmi mechanizmustól és a Vision Transformer
+felépítésétől az osztály-egyensúlytalanság kezelésén és a kiértékelési
+metrikákon át a kliens--szerver kommunikáció technológiáiig.
+
+% =============================================================================
+\section{A figyelmi mechanizmus és a Transformer}
+% =============================================================================
+
+A Transformer-architektúra alapja az úgynevezett \textit{skálázott pontszorzatos
+figyelem} (scaled dot-product attention), amely a bemenet elemei közötti
+összefüggéseket azok távolságától függetlenül modellezi \cite{vaswani2017attention}.
+A mechanizmus minden bemeneti elemhez három vektort rendel: egy lekérdezést
+($Q$, query), egy kulcsot ($K$, key) és egy értéket ($V$, value). A kimenet az
+értékvektorok súlyozott összege, ahol a súlyokat a lekérdezések és kulcsok
+hasonlósága határozza meg:
+
+\begin{equation}
+  \mathrm{Attention}(Q, K, V) = \mathrm{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d_k}}\right) V,
+  \label{eq:attention}
+\end{equation}
+
+ahol $d_k$ a kulcsvektorok dimenziója; a $\sqrt{d_k}$ skálázó tényező a
+pontszorzatok nagyságát stabilizálja, megakadályozva a softmax telítődését. A
+gyakorlatban a modell több, párhuzamos figyelmi „fejet'' (multi-head attention)
+alkalmaz, amelyek különböző reprezentációs alterekben tanulnak összefüggéseket,
+így gazdagabb leírást képesek megragadni \cite{vaswani2017attention}.
+
+A Transformer-kódoló e figyelmi rétegeket helyzetenkénti, teljesen összekötött
+előrecsatolt rétegekkel (feed-forward), maradék (reziduális) kapcsolatokkal és
+rétegnormalizálással kombinálja. Mivel a figyelem önmagában érzéketlen az elemek
+sorrendjére, a bemenethez \textit{helyzetkódolást} (positional encoding) adnak,
+amely a sorrendi információt visszacsempészi a modellbe.
+
+% =============================================================================
+\section{A Vision Transformer architektúrája}
+% =============================================================================
+
+A Vision Transformer (ViT) a természetesnyelv-feldolgozásban bevált
+Transformer-kódolót ülteti át a képosztályozásra \cite{dosovitskiy2021vit}. A
+feldolgozás lépései a következők:
+
+\begin{enumerate}
+  \item \textbf{Foltokra bontás és beágyazás.} A $H \times W$ méretű bemeneti
+  képet rögzített méretű, nem átfedő foltokra (jellemzően $16 \times 16$ pixel)
+  bontja. Minden foltot vektorrá lapít, majd egy lineáris vetítés egy rögzített
+  dimenziójú beágyazási térbe képezi -- ezek a „képtokenek'', a nyelvi modellek
+  szótokenjeinek analógiái.
+  \item \textbf{Osztályozó token és helyzetkódolás.} A foltbeágyazások elé egy
+  tanulható osztályozó tokent (\texttt{[CLS]}) fűz, amely a teljes kép összegzett
+  reprezentációját hivatott hordozni. A sorrendi (térbeli) információt tanulható
+  helyzetkódolás biztosítja.
+  \item \textbf{Transformer-kódoló.} A tokensorozatot több, egymásra épülő
+  Transformer-kódoló réteg dolgozza fel; a többfejű önfigyelem révén minden folt
+  közvetlen kapcsolatba kerülhet az összes többivel, így a modell a kép globális
+  összefüggéseit is megragadja.
+  \item \textbf{Osztályozó fej.} A végső réteg \texttt{[CLS]} tokenjének
+  reprezentációjára egy osztályozó fej (jellemzően egy- vagy kétrétegű
+  perceptron) épül, amely az osztályok feletti döntést szolgáltatja.
+\end{enumerate}
+
+A konvolúciós hálókkal szemben a ViT nem rendelkezik beépített képi induktív
+torzítással (lokalitás, eltolás-invariancia), ezért nagyobb adatmennyiséget vagy
+erős előtanítást igényel; cserébe a globális összefüggéseket rugalmasabban
+modellezi, és nagy adathalmazokon a CNN-ekkel versenyképes vagy azokat meghaladó
+teljesítményt ér el \cite{dosovitskiy2021vit}.
+
+% MEGJEGYZÉS (Ervin): ide ajánlott egy ViT-architektúra séma (foltokra bontás ->
+% beágyazás -> Transformer-kódoló -> CLS -> osztályozó fej). Mivel a forráscikk
+% ábrája szerzői jogvédett, érdemes saját szerkesztésű ábrát készíteni.
+\begin{figure}[H]
+  \centering
+  \fbox{\begin{minipage}[c][4.5cm][c]{0.85\textwidth}
+    \centering\itshape
+    [Ábra helye] -- A Vision Transformer feldolgozási folyamata: a kép foltokra
+    bontása, lineáris beágyazás, helyzetkódolás, Transformer-kódoló rétegek,
+    valamint a \texttt{[CLS]} tokenre épülő osztályozó fej. (Saját szerkesztésű
+    ábrát illessz be.)
+  \end{minipage}}
+  \caption{A Vision Transformer (ViT) sematikus felépítése.}
+  \label{fig:vit-arch}
+\end{figure}
+
+% =============================================================================
+\section{Átviteli tanulás és finomhangolás}
+% =============================================================================
+
+Az orvosi képadatok jellemzően korlátozott mennyiségben állnak rendelkezésre,
+ami megnehezíti a nagy kapacitású modellek -- különösen a ViT -- nulláról történő
+betanítását. Az \textit{átviteli tanulás} (transfer learning) erre kínál
+megoldást: a modellt először egy nagy, általános képadatbázison (jellemzően az
+ImageNet adathalmazon \cite{russakovsky2015imagenet}) tanítják be, ahol általános
+vizuális reprezentációkat -- éleket, textúrákat, alakzatokat -- sajátít el. Az
+így előtanított modellt ezután a célfeladat kisebb adathalmazán
+\textit{finomhangolják} (fine-tuning).
+
+A finomhangolás során bevett gyakorlat a \textit{differenciált tanulási ráta}
+alkalmazása: az előtanított törzshálót (backbone) kis tanulási rátával frissítik,
+hogy a megtanult reprezentációk ne sérüljenek, míg az újonnan inicializált
+osztályozó fejet nagyobb rátával tanítják, mivel azt a feladatra nulláról kell
+megtanulni. A tanulás stabilitását a \textit{bemelegítés} (warmup) is segíti,
+amely a kezdeti néhány epochban fokozatosan emeli a tanulási rátát, megelőzve a
+hideg fej által okozott nagy, destabilizáló lépéseket.
+
+% =============================================================================
+\section{Az osztály-egyensúlytalanság kezelése}
+% =============================================================================
+
+Az orvosi szűrési feladatok jellemzően erősen kiegyensúlyozatlanok: a pozitív
+(beteg) esetek a teljes adathalmaznak csupán töredékét teszik ki. Ilyenkor a
+hagyományos keresztentrópia-veszteséget a sok, könnyen osztályozható negatív
+példa uralja, és a modell hajlamos a többségi osztály felé torzítani. A
+szakirodalom több, egymást kiegészítő technikát kínál e probléma kezelésére.
+
+\paragraph{Súlyozott mintavételezés.} Az egyik megközelítés a tanító batch-ek
+osztályeloszlásának kiegyensúlyozása: minden mintát az osztálya gyakoriságával
+fordítottan arányos súllyal választunk, így a ritka pozitív esetek a tanítás
+során felülreprezentálttá válnak.
+
+\paragraph{Fókuszveszteség (focal loss).} A Lin és munkatársai által bevezetett
+fókuszveszteség a keresztentrópiát úgy alakítja át, hogy a jól osztályozott
+példák hozzájárulását lecsökkenti, és a tanulást a nehéz, félreosztályozott
+esetekre összpontosítja \cite{lin2017focal}:
+
+\begin{equation}
+  \mathrm{FL}(p_t) = -\,\alpha_t \,(1 - p_t)^{\gamma}\, \log(p_t),
+  \label{eq:focal}
+\end{equation}
+
+ahol $p_t$ a helyes osztályhoz rendelt becsült valószínűség, $\gamma \ge 0$ a
+fókuszáló paraméter (amely a könnyű példák súlyát csökkenti), $\alpha_t$ pedig
+egy osztálysúly, amely a pozitív és negatív esetek közötti egyensúlyt
+finomhangolja. A $\gamma = 0$ választás visszaadja a súlyozott
+keresztentrópiát.
+
+\paragraph{Kétfázisú tanítás.} A kiegyensúlyozott mintavételezés mellett betanított
+modell kimeneti valószínűségei eltérhetnek a valós, erősen kiegyensúlyozatlan
+előfordulási aránytól. Ezt egy második, kalibráló fázis korrigálhatja, amelyben
+a modellt a valós eloszlású adaton, kisebb tanulási rátával tanítjuk tovább, így
+a kimeneti valószínűségek a tényleges priorhoz igazodnak.
+
+% =============================================================================
+\section{Kiértékelési metrikák}
+% =============================================================================
+
+Erősen kiegyensúlyozatlan feladatban a nyers pontosság (accuracy) félrevezető,
+hiszen a többségi osztály triviális megjósolásával is magas érték érhető el.
+Ezért orvosi szűrésnél a tévesztés-mátrixból (confusion matrix) származtatott,
+osztályérzékeny metrikákat alkalmazunk. Jelölje $TP$, $TN$, $FP$ és $FN$ rendre a
+valódi pozitív, valódi negatív, hamis pozitív és hamis negatív esetek számát.
+
+\begin{align}
+  \text{Érzékenység (sensitivity)} &= \frac{TP}{TP + FN}, &
+  \text{Specificitás (specificity)} &= \frac{TN}{TN + FP}, \label{eq:sens-spec}\\
+  \text{PPV} &= \frac{TP}{TP + FP}, &
+  \text{NPV} &= \frac{TN}{TN + FN}. \label{eq:ppv-npv}
+\end{align}
+
+Az \textbf{érzékenység} azt méri, hogy a modell a valóban rosszindulatú eseteknek
+mekkora hányadát ismeri fel -- szűrőeszköznél ez a legkritikusabb mutató, mivel a
+fel nem ismert rák (hamis negatív) a legsúlyosabb kimenetel. A \textbf{negatív
+prediktív érték} (NPV) azt fejezi ki, hogy a „jóindulatú'' besorolás mennyire
+megbízható.
+
+\paragraph{ROC-görbe és AUC.} A bináris osztályozók döntési küszöbtől független
+értékelésére a \textit{működési jelleggörbét} (Receiver Operating Characteristic,
+ROC) használjuk, amely a valódi pozitív arányt (érzékenység) a hamis pozitív
+arány ($FPR = FP/(FP+TN)$) függvényében ábrázolja a küszöb változtatásával. A
+görbe alatti terület (Area Under the Curve, AUC) egyetlen számba sűríti a
+rangsorolási képességet: értéke 0,5 (véletlen találgatás) és 1,0 (tökéletes
+elkülönítés) között mozog.
+
+\paragraph{Részleges AUC (pAUC).} Erős egyensúlytalanságnál és klinikai
+kontextusban gyakran csak a görbe egy meghatározott szakasza érdekes. Az ISIC
+2024 verseny elsődleges metrikája a 80\%-os érzékenység feletti tartományra
+korlátozott részleges AUC (partial AUC), amely kifejezetten a klinikailag
+elvárt, magas érzékenységi tartományban méri a teljesítményt; a metrika
+értéke $[0,\ 0{,}2]$ tartományba esik, ahol $0{,}2$ a tökéletes osztályozó
+értéke \cite{isic2024}.
+
+\paragraph{Kalibráció és Brier-pontszám.} A jó rangsorolás (magas AUC) nem
+garantálja, hogy a modell által kiadott valószínűségek megbízhatóak. A
+\textit{kalibráció} azt méri, hogy a becsült valószínűségek mennyire felelnek
+meg a tényleges bekövetkezési aránynak; Guo és munkatársai rámutattak, hogy a
+modern neurális hálók gyakran rosszul kalibráltak \cite{guo2017calibration}. A
+kalibráció egyik összegző mérőszáma a Brier-pontszám, a becsült valószínűség és a
+tényleges címke közötti átlagos négyzetes eltérés:
+
+\begin{equation}
+  \mathrm{Brier} = \frac{1}{N} \sum_{i=1}^{N} (p_i - y_i)^2,
+  \label{eq:brier}
+\end{equation}
+
+ahol $p_i$ a $i$-edik mintára becsült valószínűség, $y_i \in \{0,1\}$ a valódi
+címke; az alacsonyabb érték jobb kalibrációt jelez.
+
+% =============================================================================
+\section{Statisztikai elemzés}
+% =============================================================================
+
+Mivel a teszthalmazban a pozitív esetek száma korlátozott, a pontbecslések
+(érzékenység, specificitás, AUC) mellett azok bizonytalanságát is jelölni kell.
+Az arányjellegű metrikákhoz (érzékenység, specificitás) az egzakt, binomiális
+eloszláson alapuló Clopper--Pearson-féle konfidencia-intervallum ad megbízható
+becslést kis mintaszám esetén is. Az AUC esetében a DeLong-féle, nemparaméteres
+módszer szolgáltat konfidencia-intervallumot, illetve teszi lehetővé két modell
+AUC-értékének páros összehasonlítását; a módszer egy gyors, korszerű
+implementációját Sun és Xu adta meg \cite{sun2014delong}. E statisztikai eszközök
+biztosítják, hogy a modellek közötti különbségekről tett állítások ne csupán a
+mintavételi zaj következményei legyenek.
+
+% =============================================================================
+\section{Kommunikációs technológiák: SSE és az MCP}
+% =============================================================================
+
+A dolgozatban bemutatott rendszer valós idejű, token-szintű válaszközvetítést és
+egy nyelvi modellt kiszolgáló komponensekkel való kommunikációt igényel; ezt két
+technológia teszi lehetővé.
+
+\paragraph{Szerver-küldött események (SSE).} A szerver-küldött események
+(Server-Sent Events) a HTML szabvány részét képező, egyirányú, szerverről
+kliensre irányuló adatfolyam-mechanizmus egyetlen, tartós HTTP-kapcsolaton
+keresztül \cite{whatwg_sse}. Az SSE különösen alkalmas a nagy nyelvi modellek
+token-szintű, fokozatos válaszainak továbbítására, mivel a kliens a szöveget
+generálással egyidejűleg, darabonként jeleníti meg, jelentősen javítva a
+felhasználói élményt.
+
+\paragraph{Model Context Protocol (MCP).} A Model Context Protocol az Anthropic
+által 2024-ben közzétett nyílt szabvány, amely egységesíti a nagy nyelvi
+modellek és a külső eszközök, adatforrások közötti kommunikációt \cite{mcp2024}.
+Az MCP a JSON-RPC 2.0 üzenetformátumra épül \cite{jsonrpc2013}, és többféle
+átviteli réteget támogat, többek között a helyi folyamatok közötti szabványos
+be- és kimeneti (stdio) csatornát. A dolgozat rendszerében az MCP biztosítja a
+backend és a modellt kiszolgáló komponens közötti, jól strukturált
+kommunikációt; e megoldás részletes tárgyalása a mérnöki részben található.
+
