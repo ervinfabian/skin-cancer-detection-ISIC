@@ -1,3 +1,21 @@
-Kivonat
+A bőrrák, és különösen a melanoma, a korai felismerés esetén jól kezelhető, késői
+stádiumban azonban drámaian romlik a túlélési esély; a bőrgyógyászati
+szakellátáshoz való hozzáférés ugyanakkor világszerte egyenetlen. Jelen dolgozat
+egy végponttól végpontig megvalósított, mesterséges intelligencián alapuló
+bőr\-elváltozás-elemző rendszert (DermAI) mutat be, amely a korai szűrést egy
+okostelefonon és webböngészőben egyaránt elérhető eszközzel támogatja.
 
-\textbf{Kulcsszavak}: 
+A dolgozat kutatási része egy Vision Transformer (ViT) modellt tanít be az ISIC
+2024 adathalmazon a bőrelváltozások jó\-indulatú és rosszindulatú kategóriába
+sorolására, kiemelt figyelmet fordítva az adathalmaz erős
+osztály-egyensúlytalanságának kezelésére. A modellt egy azonos feltételek mellett
+betanított ResNet-18 konvolúciós hálóval és egy zero-shot Gemini nagy nyelvi
+modellel hasonlítjuk össze, a hivatalos ISIC 2024 metrikán, statisztikai
+szignifikancia-vizsgálattal és kalibrációs elemzéssel kiegészítve. A mérnöki rész
+a betanított modellt egy teljes alkalmazássá egészíti ki: mobil- és webklienssel,
+a modellt kiszolgáló MCP-réteggel, a Gemini modellre épülő képvalidációval és
+természetes nyelvű magyarázattal, valamint hitelesített, felhasználónként
+elkülönített felhőalapú adattárolással.
+
+\textbf{Kulcsszavak}: bőrrák, melanoma, mély tanulás, Vision Transformer, ISIC
+2024, osztály-egyensúlytalanság, nagy nyelvi modell, mobil egészségügy

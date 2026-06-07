@@ -1,3 +1,20 @@
-Abstract
+Skin cancer, and melanoma in particular, is highly treatable when detected early,
+but the prognosis deteriorates dramatically at advanced stages; at the same time,
+access to specialist dermatological care is unevenly distributed worldwide. This
+thesis presents DermAI, an end-to-end, artificial-intelligence-based skin lesion
+analysis system that supports early screening through a tool available both on
+smartphones and in web browsers.
 
-\textbf{Keywords}: 
+The research part of the thesis trains a Vision Transformer (ViT) model on the
+ISIC 2024 dataset to classify skin lesions as benign or malignant, with particular
+attention to handling the dataset's severe class imbalance. The model is compared
+against a ResNet-18 convolutional baseline trained under identical conditions and
+a zero-shot Gemini large language model, using the official ISIC 2024 metric
+complemented by statistical significance testing and calibration analysis. The
+engineering part extends the trained model into a complete application, comprising
+mobile and web clients, an MCP layer serving the model, Gemini-based image
+validation and natural-language explanation, and authenticated, per-user cloud
+storage.
+
+\textbf{Keywords}: skin cancer, melanoma, deep learning, Vision Transformer, ISIC
+2024, class imbalance, large language model, mobile health
