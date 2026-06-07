@@ -1,3 +1,23 @@
-Extract
+Cancerul de piele, în special melanomul, este foarte tratabil atunci când este
+depistat precoce, însă prognosticul se înrăutățește dramatic în stadiile
+avansate; totodată, accesul la îngrijire dermatologică de specialitate este
+distribuit inegal la nivel mondial. Această lucrare prezintă DermAI, un sistem
+end-to-end de analiză a leziunilor cutanate bazat pe inteligență artificială,
+care sprijină screeningul precoce printr-un instrument disponibil atât pe
+telefoane inteligente, cât și în browsere web.
 
-\textbf{Cuvinte cheie}: 
+Partea de cercetare a lucrării antrenează un model Vision Transformer (ViT) pe
+setul de date ISIC 2024 pentru clasificarea leziunilor cutanate în benigne și
+maligne, acordând o atenție deosebită gestionării dezechilibrului sever al
+claselor. Modelul este comparat cu o rețea convoluțională ResNet-18, antrenată în
+condiții identice, și cu un model lingvistic de mari dimensiuni Gemini în regim
+zero-shot, folosind metrica oficială ISIC 2024, completată cu teste de
+semnificație statistică și analiză de calibrare. Partea inginerească extinde
+modelul antrenat într-o aplicație completă, cuprinzând clienți mobili și web, un
+strat MCP care servește modelul, validarea imaginilor și explicații în limbaj
+natural bazate pe Gemini, precum și stocare în cloud autentificată și separată pe
+utilizatori.
+
+\textbf{Cuvinte cheie}: cancer de piele, melanom, învățare profundă, Vision
+Transformer, ISIC 2024, dezechilibru al claselor, model lingvistic de mari
+dimensiuni, sănătate mobilă
