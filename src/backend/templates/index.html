@@ -371,7 +371,7 @@
     <div class="logo"></div>
     <h1>DermAI</h1>
     <span class="subtitle">Skin Lesion Analysis · Powered by Gemini Flash</span>
-    <a href="/about" style="margin-left:auto; font-size:0.72rem; color:var(--text-dim); letter-spacing:0.05em; text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-dim)'">About</a>
+    <a href="#" id="btn-about" onclick="showAbout();return false;" style="margin-left:auto; font-size:0.72rem; color:var(--text-dim); letter-spacing:0.05em; text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-dim)'">About</a>
     <button id="btn-sign-out" onclick="signOut()" style="margin-left:16px; background:none; border:1px solid var(--border); border-radius:6px; padding:4px 12px; font-family:var(--font); font-size:0.72rem; color:var(--text-dim); cursor:pointer; letter-spacing:0.05em;" onmouseover="this.style.borderColor='var(--danger)';this.style.color='var(--danger)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">Sign out</button>
     <!-- CHANGED BY CLAUDE (2026-03-30): added save indicator pill -->
     <span id="save-indicator">✓ saved</span>
@@ -437,8 +437,17 @@
         idToken = await user.getIdToken();
         overlay.style.display = "none";
       } else {
-        idToken = null;
+        // Signed out — clear all session state so the next user starts fresh
+        idToken    = null;
         overlay.style.display = "flex";
+        // Reset chat state (defined in the chat script block below)
+        if (typeof history    !== "undefined") history    = [];
+        if (typeof sessionId  !== "undefined") sessionId  = null;
+        if (typeof pendingImage !== "undefined") pendingImage = null;
+        if (typeof isStreaming !== "undefined") isStreaming = false;
+        // Clear the chat window UI
+        const cw = document.getElementById("chat-window");
+        if (cw) cw.innerHTML = "";
       }
     });
 
@@ -700,6 +709,63 @@
       indicator.classList.add("visible");
       setTimeout(() => indicator.classList.remove("visible"), 2000);
     }
+
+    // ── About modal ────────────────────────────────────────────────────────
+    function showAbout() {
+      document.getElementById("about-modal").style.display = "flex";
+    }
+    function hideAbout() {
+      document.getElementById("about-modal").style.display = "none";
+    }
+    // Close on backdrop click
+    document.getElementById("about-modal").addEventListener("click", function(e) {
+      if (e.target === this) hideAbout();
+    });
   </script>
+
+  <!-- ── About modal overlay ──────────────────────────────────────────────── -->
+  <div id="about-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; align-items:center; justify-content:center; padding:24px;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); max-width:680px; width:100%; max-height:85vh; overflow-y:auto; padding:32px 36px; position:relative;">
+
+      <button onclick="hideAbout()" style="position:absolute; top:16px; right:16px; background:none; border:none; color:var(--text-dim); font-size:1.2rem; cursor:pointer; line-height:1;" title="Close">✕</button>
+
+      <h2 style="font-size:1.1rem; color:var(--accent); letter-spacing:0.08em; margin-bottom:20px;">What is DermAI?</h2>
+      <p style="font-size:0.88rem; line-height:1.8; color:var(--text-dim); margin-bottom:24px;">
+        DermAI is an AI-powered skin lesion analysis tool designed to help you decide
+        whether a skin lesion warrants a dermatologist consultation. It works with
+        photos taken directly with your smartphone camera or uploaded from your gallery.
+      </p>
+
+      <h2 style="font-size:1.1rem; color:var(--accent); letter-spacing:0.08em; margin-bottom:16px;">How does it work?</h2>
+      <div style="display:flex; flex-direction:column; gap:0;">
+        <div style="display:flex; gap:16px; padding:12px 0; border-bottom:1px solid var(--border);">
+          <span style="font-size:1.1rem; color:var(--accent); min-width:28px;">01</span>
+          <p style="font-size:0.86rem; line-height:1.7; color:var(--text-dim);"><strong style="color:var(--text)">Upload</strong> — Take or upload a close-up photo of the skin lesion. The app checks image quality and relevance before proceeding.</p>
+        </div>
+        <div style="display:flex; gap:16px; padding:12px 0; border-bottom:1px solid var(--border);">
+          <span style="font-size:1.1rem; color:var(--accent); min-width:28px;">02</span>
+          <p style="font-size:0.86rem; line-height:1.7; color:var(--text-dim);"><strong style="color:var(--text)">AI Classification</strong> — A Vision Transformer model trained on the ISIC 2024 dataset classifies the lesion as <em>Benign</em> or <em>Malignant</em>, with a confidence score.</p>
+        </div>
+        <div style="display:flex; gap:16px; padding:12px 0; border-bottom:1px solid var(--border);">
+          <span style="font-size:1.1rem; color:var(--accent); min-width:28px;">03</span>
+          <p style="font-size:0.86rem; line-height:1.7; color:var(--text-dim);"><strong style="color:var(--text)">Explanation</strong> — Gemini Flash explains the result in plain language, applying the ABCDE rule (asymmetry, border, color, diameter, evolution).</p>
+        </div>
+        <div style="display:flex; gap:16px; padding:12px 0;">
+          <span style="font-size:1.1rem; color:var(--accent); min-width:28px;">04</span>
+          <p style="font-size:0.86rem; line-height:1.7; color:var(--text-dim);"><strong style="color:var(--text)">Follow-up</strong> — Ask follow-up questions about the lesion and receive detailed answers from the AI.</p>
+        </div>
+      </div>
+
+      <div style="margin-top:24px; background:rgba(224,92,110,0.07); border:1px solid var(--danger); border-radius:var(--radius); padding:14px 18px; font-size:0.82rem; color:var(--text-dim); line-height:1.7;">
+        <strong style="color:var(--danger);">⚠ Important disclaimer</strong><br>
+        DermAI is an informational screening tool only — it does not replace professional
+        medical examination or diagnosis. Never make a medical decision based solely on
+        this application's output. If you have any concerns about a skin lesion,
+        consult a dermatologist.
+      </div>
+
+    </div>
+  </div>
+
 </body>
 </html>

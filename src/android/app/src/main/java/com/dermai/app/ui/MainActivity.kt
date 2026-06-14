@@ -107,24 +107,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
-        R.id.action_history -> {
-            startActivity(Intent(this, HistoryActivity::class.java))
-            true
-        }
-        R.id.action_new_chat -> {
+R.id.action_new_chat -> {
             viewModel.startNewSession()
             clearPendingImage()
             true
         }
-        R.id.action_about -> {
+R.id.action_about -> {
             showAboutDialog()
             true
         }
-        R.id.action_settings -> {
-            showSettingsDialog()
-            true
-        }
-        R.id.action_sign_out -> {
+R.id.action_sign_out -> {
             signOut()
             true
         }
@@ -299,24 +291,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showAboutDialog() {
+        val view = layoutInflater.inflate(R.layout.dialog_about, null)
         AlertDialog.Builder(this)
-            .setTitle("About DermAI")
-            .setMessage(
-                "DermAI is an AI-powered skin lesion analysis tool that helps you decide " +
-                "whether a lesion warrants a dermatologist consultation.\n\n" +
-                "How it works:\n" +
-                "① Upload a photo of the skin lesion\n" +
-                "② A Vision Transformer model classifies it as Benign or Malignant\n" +
-                "③ Gemini AI explains the result using the ABCDE rule\n" +
-                "④ Ask follow-up questions about the lesion\n\n" +
-                "⚠ This app does not replace professional medical diagnosis — " +
-                "it is an informational screening tool only."
-            )
-            .setPositiveButton("OK", null)
+            .setTitle("DermAI")
+            .setView(view)
+            .setPositiveButton("Close", null)
             .show()
     }
 
     private fun signOut() {
+        // Clear chat state before sign-out so the next user starts with a clean slate
+        viewModel.startNewSession()
+        clearPendingImage()
+
         FirebaseAuth.getInstance().signOut()
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
         GoogleSignIn.getClient(this, gso).signOut().addOnCompleteListener {

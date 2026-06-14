@@ -41,7 +41,7 @@ from pydantic import BaseModel
 
 # Firebase Admin SDK
 import firebase_admin
-from firebase_admin import credentials, firestore, storage
+from firebase_admin import credentials, firestore, storage, auth as firebase_auth
 
 # Gemini new SDK
 from google import genai
@@ -207,13 +207,14 @@ def upload_image_to_storage(image_bytes: bytes, image_id: str, uid: str, content
 
 def save_session_to_firestore(session_id: str, image_id: str | None,
                                classification: dict | None, messages: list,
-                               uid: str = "") -> None:
+                               uid: str = "", user_email: str = "") -> None:
     """
     Save or update a chat session in Firestore.
 
     Firestore structure:
       sessions/{session_id}
         ├── user_id:        Firebase UID of the owner
+        ├── user_email:     email address (human-readable owner identifier)
         ├── created_at:     ISO timestamp
         ├── image_id:       str | null
         ├── classification: {label, confidence, all_scores} | null
@@ -223,6 +224,7 @@ def save_session_to_firestore(session_id: str, image_id: str | None,
     ref = db.collection("sessions").document(session_id)
     ref.set({
         "user_id":        uid,
+        "user_email":     user_email,
         "created_at":     datetime.datetime.utcnow().isoformat(),
         "image_id":       image_id,
         "classification": classification,
@@ -252,7 +254,7 @@ _bearer = HTTPBearer()
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Security(_bearer)) -> dict:
     try:
-        return firebase_admin.auth.verify_id_token(credentials.credentials)
+        return firebase_auth.verify_id_token(credentials.credentials)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
@@ -304,6 +306,7 @@ async def analyze(
     """
     # Generate IDs
     uid         = decoded.get("uid", "")
+    user_email  = decoded.get("email", "")
     image_id    = str(uuid.uuid4())
     sid         = session_id or str(uuid.uuid4())
     image_bytes = await image.read()
@@ -395,6 +398,7 @@ async def analyze(
             messages=[{"role": "user", "text": message,
                        "timestamp": datetime.datetime.utcnow().isoformat()}],
             uid=uid,
+            user_email=user_email,
         )
     except Exception as e:
         print(f"[Firestore] Save failed: {e}")

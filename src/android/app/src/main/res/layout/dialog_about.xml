@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- dialog_about.xml — DermAI About dialog, mirrors the web About page style -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/bg_surface">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- ── What is DermAI? ─────────────────────────────────────────── -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="What is DermAI?"
+            android:textColor="@color/accent"
+            android:textSize="14sp"
+            android:letterSpacing="0.08"
+            android:textAllCaps="false"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="DermAI is an AI-powered skin lesion analysis tool designed to help you decide whether a skin lesion warrants a dermatologist consultation. It works with photos taken directly with your smartphone camera or uploaded from your gallery."
+            android:textColor="@color/text_dim"
+            android:textSize="13sp"
+            android:lineSpacingMultiplier="1.6"
+            android:layout_marginBottom="24dp" />
+
+        <!-- ── Divider ─────────────────────────────────────────────────── -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/border"
+            android:layout_marginBottom="20dp" />
+
+        <!-- ── How does it work? ───────────────────────────────────────── -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="How does it work?"
+            android:textColor="@color/accent"
+            android:textSize="14sp"
+            android:letterSpacing="0.08"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Step 01 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="12dp">
+            <TextView
+                android:layout_width="32dp"
+                android:layout_height="wrap_content"
+                android:text="01"
+                android:textColor="@color/accent"
+                android:textSize="13sp" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/text_dim"
+                android:textSize="13sp"
+                android:lineSpacingMultiplier="1.5"
+                android:text="Upload — Take or upload a close-up photo. The app checks image quality and relevance before proceeding." />
+        </LinearLayout>
+
+        <!-- Step 02 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="12dp">
+            <TextView
+                android:layout_width="32dp"
+                android:layout_height="wrap_content"
+                android:text="02"
+                android:textColor="@color/accent"
+                android:textSize="13sp" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/text_dim"
+                android:textSize="13sp"
+                android:lineSpacingMultiplier="1.5"
+                android:text="AI Classification — A Vision Transformer model trained on the ISIC 2024 dataset classifies the lesion as Benign or Malignant, with a confidence score." />
+        </LinearLayout>
+
+        <!-- Step 03 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="12dp">
+            <TextView
+                android:layout_width="32dp"
+                android:layout_height="wrap_content"
+                android:text="03"
+                android:textColor="@color/accent"
+                android:textSize="13sp" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/text_dim"
+                android:textSize="13sp"
+                android:lineSpacingMultiplier="1.5"
+                android:text="Explanation — Gemini Flash explains the result in plain language, applying the ABCDE rule (asymmetry, border, color, diameter, evolution)." />
+        </LinearLayout>
+
+        <!-- Step 04 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="20dp">
+            <TextView
+                android:layout_width="32dp"
+                android:layout_height="wrap_content"
+                android:text="04"
+                android:textColor="@color/accent"
+                android:textSize="13sp" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/text_dim"
+                android:textSize="13sp"
+                android:lineSpacingMultiplier="1.5"
+                android:text="Follow-up — Ask follow-up questions about the lesion and receive detailed, conversational answers from the AI." />
+        </LinearLayout>
+
+        <!-- ── Disclaimer ─────────────────────────────────────────────── -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/disclaimer_bg"
+            android:padding="14dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="⚠ Important disclaimer"
+                android:textColor="@color/malignant"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="DermAI is an informational screening tool only — it does not replace professional medical examination or diagnosis. Never make a medical decision based solely on this application\'s output. If you have any concerns, consult a dermatologist."
+                android:textColor="@color/text_dim"
+                android:textSize="12sp"
+                android:lineSpacingMultiplier="1.5" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

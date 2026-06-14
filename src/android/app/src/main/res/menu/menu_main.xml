@@ -3,25 +3,12 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <!-- Opens HistoryActivity -->
-    <item
-        android:id="@+id/action_history"
-        android:title="History"
-        android:icon="@android:drawable/ic_menu_recent_history"
-        app:showAsAction="ifRoom" />
-
     <!-- Clears messages and starts a fresh session -->
     <item
         android:id="@+id/action_new_chat"
         android:title="New Chat"
         android:icon="@android:drawable/ic_menu_add"
         app:showAsAction="ifRoom" />
-
-    <!-- Network settings: backend URL + Colab model URL -->
-    <item
-        android:id="@+id/action_settings"
-        android:title="Settings"
-        app:showAsAction="never" />
 
     <item
         android:id="@+id/action_about"

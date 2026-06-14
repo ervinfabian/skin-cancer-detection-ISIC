@@ -10,6 +10,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.dermai.app.R
 import com.dermai.app.api.ApiService
@@ -27,8 +28,17 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
 
-    companion object {
-        private const val RC_SIGN_IN = 9001
+    // Modern Activity Result API — replaces deprecated startActivityForResult/onActivityResult
+    private val signInLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            firebaseAuthWithGoogle(account.idToken!!)
+        } catch (e: ApiException) {
+            setStatus("Sign-in failed: ${e.statusCode}")
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,20 +71,7 @@ class LoginActivity : AppCompatActivity() {
 
     private fun startGoogleSignIn() {
         setStatus("Signing in…")
-        startActivityForResult(googleSignInClient.signInIntent, RC_SIGN_IN)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != RC_SIGN_IN) return
-
-        val task = GoogleSignIn.getSignedInAccountFromIntent(data)
-        try {
-            val account = task.getResult(ApiException::class.java)
-            firebaseAuthWithGoogle(account.idToken!!)
-        } catch (e: ApiException) {
-            setStatus("Sign-in failed: ${e.statusCode}")
-        }
+        signInLauncher.launch(googleSignInClient.signInIntent)
     }
 
     private fun firebaseAuthWithGoogle(idToken: String) {
