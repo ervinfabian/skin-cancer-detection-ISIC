@@ -21,10 +21,10 @@ android {
         versionCode 1
         versionName "1.0"
 
-        // Your FastAPI backend URL — change for production
-        buildConfigField "String", "API_BASE_URL", "\"http://localhost:8000\""
-        // 192.168.1.100 = host machine LAN IP for physical device over WiFi
-        // Use 10.0.2.2 for Android emulator
+        // Backend URL — physical device over WiFi (same network as the server)
+        buildConfigField "String", "API_BASE_URL", "\"http://192.168.1.103:8000\""
+        // Use http://10.0.2.2:8000 for Android emulator
+        // Use http://localhost:8000 only if running on the same machine
     }
 
     buildTypes {

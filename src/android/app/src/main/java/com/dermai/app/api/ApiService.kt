@@ -59,7 +59,9 @@ sealed class StreamEvent {
 }
 
 // ── Auth interceptor — attaches Firebase ID token to every request ────────────
-// Runs on a background thread (OkHttp dispatcher), so Tasks.await is safe here.
+// Runs on an OkHttp background thread — safe to block with runBlocking.
+// Uses the coroutine .await() extension (kotlinx-coroutines-play-services)
+// instead of the deprecated Tasks.await().
 
 private class AuthInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {

@@ -32,7 +32,7 @@ import time  # already imported — used for MCP retry backoff
 import uuid
 import datetime
 import firebase_admin
-from firebase_admin import credentials, firestore, storage
+from firebase_admin import credentials, firestore, storage, auth as firebase_auth
 
 from dotenv import load_dotenv
 load_dotenv()  # loads .env from the current directory (or any parent)
@@ -133,14 +133,15 @@ def upload_image_to_storage(image_bytes: bytes, image_id: str, uid: str, content
 
 def save_session_to_firestore(session_id: str, image_id: str | None,
                                classification: dict | None, messages: list,
-                               uid: str = "") -> None:
+                               uid: str = "", user_email: str = "") -> None:
     """Create or merge a session document in Firestore.
 
     Structure:
       sessions/{session_id}
         ├── user_id:        Firebase UID of the owner
+        ├── user_email:     email address (human-readable owner identifier)
         ├── created_at:     ISO timestamp
-        ├── source:         "web"           ← marks origin as the web UI
+        ├── source:         "android"       ← marks origin as the mobile app
         ├── image_id:       str | null
         ├── classification: {label, confidence, all_scores} | null
         └── messages:       [{role, text, timestamp}, ...]
@@ -149,8 +150,9 @@ def save_session_to_firestore(session_id: str, image_id: str | None,
     ref = db.collection("sessions").document(session_id)
     ref.set({
         "user_id":        uid,
+        "user_email":     user_email,
         "created_at":     datetime.datetime.utcnow().isoformat(),
-        "source":         "web",
+        "source":         "android",
         "image_id":       image_id,
         "classification": classification,
         "messages":       messages,
@@ -185,8 +187,9 @@ def require_auth(f):
         if not token:
             return {"error": "Unauthorized"}, 401
         try:
-            decoded = firebase_admin.auth.verify_id_token(token)
-            g.uid = decoded.get("uid", "")
+            decoded = firebase_auth.verify_id_token(token)
+            g.uid        = decoded.get("uid", "")
+            g.user_email = decoded.get("email", "")
         except Exception:
             return {"error": "Invalid or expired token"}, 401
         return f(*args, **kwargs)
@@ -439,6 +442,7 @@ def chat():
                 "timestamp": datetime.datetime.utcnow().isoformat(),
             }],
             uid=g.uid,
+            user_email=g.user_email,
         )
     except Exception as e:
         print(f"[Firestore] Save failed: {e}")

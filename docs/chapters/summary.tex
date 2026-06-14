@@ -24,9 +24,14 @@ hatásának izolálására) és egy zero-shot Gemini nagy nyelvi modellel. A
 kiértékelés a hivatalos ISIC 2024 részleges AUC metrikán, két klinikailag
 értelmezhető működési ponton, valamint statisztikai szignifikancia-vizsgálattal
 (DeLong-teszt, konfidencia-intervallumok) és kalibrációs elemzéssel (Brier-pontszám)
-történt. \textit{[A fő eredmények -- a ViT, a ResNet-18 és a Gemini AUC- és
-pAUC-értékei, valamint a statisztikai összehasonlítás -- a végleges futtatások
-alapján kerülnek be: kitöltendő.]}
+történt. A finomhangolt ViT-Base modell a teszthalmazon AUC $0{,}939$-et és pAUC
+$0{,}159$-et ért el, és minden mutatóban érdemben felülmúlta a ResNet-18
+konvolúciós alapot (AUC $0{,}876$, pAUC $0{,}122$) -- különösen a magas
+érzékenységű tartományban, ahol azonos érzékenység mellett lényegesen jobb
+specificitást nyújtott. A zero-shot Gemini modell jelentősen elmaradt (AUC
+$0{,}740$). A ViT egyúttal gyakorlatilag elérte a verseny legjobb tisztán képi
+modelljének (EVA02) szintjét is (pAUC $0{,}158$), ami a saját modell
+versenyképességét igazolja.
 
 A \textbf{mérnöki rész} a betanított modellt egy teljes, működő alkalmazássá
 egészítette ki: natív Android kliens, webes felület, két backend (Flask, illetve

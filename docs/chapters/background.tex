@@ -53,18 +53,13 @@ ABCDE-szabály egyszerűsége miatt mind a szakemberek, mind a betegek számára
 használható, ugyanakkor önmagában nem helyettesíti a műszeres és szövettani
 vizsgálatot.
 
-% MEGJEGYZÉS (Ervin): ide jól illene egy ábra az ABCDE-szabály szemléltetésére
-% (pl. benignus vs. malignus elváltozások összehasonlítása). Ha van megfelelő,
-% jogtiszta képed, cseréld le az alábbi placeholder dobozt.
 \begin{figure}[H]
   \centering
-  \fbox{\begin{minipage}[c][4cm][c]{0.85\textwidth}
-    \centering\itshape
-    [Ábra helye] -- Az ABCDE-szabály szemléltetése: jóindulatú és rosszindulatú
-    pigmentált elváltozások összehasonlítása. (Saját vagy jogtiszta forrásból
-    származó ábrát illessz be.)
-  \end{minipage}}
-  \caption{Az ABCDE-szabály vizuális kritériumai.}
+  \includegraphics[width=\textwidth]{images/diagrams/abcde_rule.png}
+  \caption{Az ABCDE-szabály vizuális kritériumai: a jóindulatú (felső sor) és
+    rosszindulatú (alsó sor) pigmentált elváltozások sematikus összehasonlítása az
+    aszimmetria, a határvonal, a szín, az átmérő és az evolúció szempontjából.
+    Sematikus, illusztratív ábra -- nem valós klinikai felvétel.}
   \label{fig:abcde}
 \end{figure}
 
@@ -318,19 +313,14 @@ erős előtanítást igényel; cserébe a globális összefüggéseket rugalmasa
 modellezi, és nagy adathalmazokon a CNN-ekkel versenyképes vagy azokat meghaladó
 teljesítményt ér el \cite{dosovitskiy2021vit}.
 
-% MEGJEGYZÉS (Ervin): ide ajánlott egy ViT-architektúra séma (foltokra bontás ->
-% beágyazás -> Transformer-kódoló -> CLS -> osztályozó fej). Mivel a forráscikk
-% ábrája szerzői jogvédett, érdemes saját szerkesztésű ábrát készíteni.
 \begin{figure}[H]
   \centering
-  \fbox{\begin{minipage}[c][4.5cm][c]{0.85\textwidth}
-    \centering\itshape
-    [Ábra helye] -- A Vision Transformer feldolgozási folyamata: a kép foltokra
-    bontása, lineáris beágyazás, helyzetkódolás, Transformer-kódoló rétegek,
-    valamint a \texttt{[CLS]} tokenre épülő osztályozó fej. (Saját szerkesztésű
-    ábrát illessz be.)
-  \end{minipage}}
-  \caption{A Vision Transformer (ViT) sematikus felépítése.}
+  \includegraphics[width=\textwidth]{images/diagrams/vit_architecture.png}
+  \caption{A Vision Transformer (ViT) sematikus felépítése: a kép foltokra
+    bontása, lineáris beágyazás és helyzetkódolás, a \texttt{[CLS]} tokennel
+    kiegészített tokenszekvencia feldolgozása a Transformer-kódoló rétegeiben,
+    végül a \texttt{[CLS]} reprezentációra épülő osztályozó fej, amely a
+    jó\-indulatú/rosszindulatú döntést adja.}
   \label{fig:vit-arch}
 \end{figure}
 

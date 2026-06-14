@@ -54,9 +54,18 @@ felosztás eredményét a \ref{tab:split}.~táblázat foglalja össze.
 \section{A Vision Transformer modell}
 % =============================================================================
 
-A fő modell egy ImageNet-en előtanított Vision Transformer
-(\texttt{vit\_base\_patch16\_224}) \cite{dosovitskiy2021vit}, amelyet a
-\texttt{timm} könyvtárból \cite{wightman2019timm} töltöttünk be. A törzsháló a
+A kutatás modellfejlesztési megközelítése a \textbf{transzfer tanulás} (transfer
+learning): az ImageNet-21k adathalmazon előtanított, általános vizuális
+reprezentációkat hordozó súlyokat a bőrelváltozás-osztályozás szűk doménjére
+hangoltuk finomhangolással (fine-tuning). Ez a stratégia különösen indokolt, ha
+a céldoméni adathalmaz korlátozott számú pozitív példát tartalmaz -- az ISIC 2024
+esetén mindössze 393 rosszindulatú esetet a közel 401~000 képből --, mivel az
+előtanított jellemzőkivonat (textúrák, alakok, szélek) hatékonyan transzferálható
+még az orvosi képi feladatokra is \cite{raghu2019transfusion}.
+
+A fő modell a \texttt{vit\_base\_patch16\_224} architektúra
+\cite{dosovitskiy2021vit}, amelyet a \texttt{timm} könyvtárból
+\cite{wightman2019timm} töltöttünk be. A törzsháló a
 $224 \times 224$ pixeles bemenetből egy 768 dimenziós reprezentációt állít elő,
 amelyre egy egyedi osztályozó fejet illesztettünk: rétegnormalizálás, dropout
 ($p=0{,}3$), egy 256 neuronos lineáris réteg GELU aktivációval, majd egy újabb
@@ -138,17 +147,25 @@ módban, gradiens-akkumulációval futott, az effektív batch-méret 128 volt.
 \section{A ResNet-18 viszonyítási alap}
 % =============================================================================
 
-Az architektúra szerepének izolálására egy konvolúciós viszonyítási alapot is
-betanítottunk: egy ImageNet-en előtanított ResNet-18 hálót \cite{he2016resnet}.
-A kísérlet kontrollált jellegű: a ResNet-18 \textbf{pontosan ugyanazt} a
-feldolgozási folyamatot használja, mint a ViT -- azonos adatfelosztás (azonos
-véletlenmaggal, így azonos teszthalmaz), azonos egyensúlytalanság-kezelés,
-azonos kiértékelési protokoll --, így a két modell közötti teljesítménykülönbség
-kizárólag az architektúrának (konvolúció kontra figyelem) tulajdonítható. A
-ResNet-18 lényegesen kevesebb paraméterrel rendelkezik, mint a ViT-Base, és
-mivel a konvolúciós hálók nagyobb tanulási rátát viselnek el a finomhangolás
-során, a törzsháló, illetve a fej tanulási rátáját $1 \times 10^{-5}$, illetve
+Viszonyítási alapként egy szintén transzfer tanulással adaptált, ImageNet-en
+előtanított ResNet-18 hálót \cite{he2016resnet} finomhangoltunk, amely a mély
+tanulásban széles körben alkalmazott, standard konvolúciós referenciamodell.
+A ResNet-18 \textbf{pontosan ugyanazt} a feldolgozási folyamatot használja, mint
+a ViT -- azonos adatfelosztás
+(azonos véletlenmaggal, így azonos teszthalmaz), azonos egyensúlytalanság-kezelés,
+azonos kiértékelési protokoll --, így a teljesítménykülönbség értelmezésekor a
+tanítási és kiértékelési feltételek nem jelentenek zavaró tényezőt. A
+finomhangoláshoz -- mivel a konvolúciós hálók nagyobb tanulási rátát viselnek el
+-- a törzsháló, illetve a fej tanulási rátáját $1 \times 10^{-5}$, illetve
 $1 \times 10^{-4}$ értékre emeltük; minden egyéb beállítás megegyezett a ViT-ével.
+
+Fontos ugyanakkor megjegyezni, hogy a ResNet-18 lényegesen kevesebb paraméterrel
+rendelkezik (mintegy 11~millió), mint a ViT-Base (mintegy 86~millió). A két
+modell tehát nem csupán az architektúrában (konvolúció kontra figyelem), hanem a
+kapacitásban is különbözik; a ResNet-18-at ezért \emph{standard viszonyítási
+alapként} kezeljük, nem pedig szigorúan azonos kapacitású kontrollként. A
+megfigyelt teljesítménykülönbséget ennek megfelelően a két tényező együttes
+hatásaként értelmezzük.
 
 % =============================================================================
 \section{A Gemini zero-shot viszonyítási alap}
@@ -199,33 +216,23 @@ vizsgáltuk. A valószínűségi kalibrációt a Brier-pontszámmal
 \section{Eredmények}
 % =============================================================================
 
-% -----------------------------------------------------------------------------
-% FIGYELEM (Ervin): az alábbi táblázatok és ábrák PLACEHOLDEREK.
-% A számértékeket a végleges futtatások kimenetéből töltsd ki:
-%   - resnet18_metrics_final.json / (vit) metrics_final.json
-%   - training_curves.png, roc_curve_test.png
-% A "--" cellák helyére kerülnek a tényleges értékek.
-% -----------------------------------------------------------------------------
-
 Ebben a szakaszban a ViT modell teljesítményét értékeljük a teszthalmazon, majd
-összevetjük a ResNet-18 és a Gemini viszonyítási alapokkal.
+összevetjük a ResNet-18, az EVA02 és a Gemini viszonyítási alapokkal.
 
 \subsection{A tanítás konvergenciája}
 
-A \ref{fig:training-curves}.~ábra a tanítás során mért veszteség, AUC és pAUC
-alakulását mutatja epochonként, a validációs halmazon.
+A \ref{fig:training-curves}.~ábra a tanítás során mért veszteség, valamint a
+validációs AUC és pAUC alakulását mutatja epochonként. A validációs AUC a kezdeti
+$0{,}73$-ról $0{,}90$-re, a pAUC $0{,}055$-ről $0{,}132$-re emelkedett; a legjobb
+validációs pAUC a 11.~epochnál állt elő, a korai leállítás pedig a 16.~epochnál
+aktiválódott. A második (kalibrációs) fázis a validációs metrikákat érdemben nem
+változtatta, így a végső modell lényegében az első fázis legjobb állapota.
 
-% MEGJEGYZÉS (Ervin): cseréld le az alábbi placeholdert a notebook által generált
-% ábrára. A megfelelő includegraphics sor (a fájl figures/ mappába másolása után):
-% \includegraphics[width=\textwidth]{images/results/training_curves.png}
 \begin{figure}[H]
   \centering
-  \fbox{\begin{minipage}[c][4cm][c]{0.85\textwidth}
-    \centering\itshape
-    [Ábra helye] -- A tanítási veszteség, valamint a validációs AUC és pAUC
-    alakulása az epochok függvényében (\texttt{training\_curves.png}).
-  \end{minipage}}
-  \caption{A ViT modell tanításának konvergenciája.}
+  \includegraphics[width=\textwidth]{images/results/vit_training_curves.png}
+  \caption{A ViT modell tanításának konvergenciája: a tanítási veszteség,
+    valamint a validációs AUC és pAUC alakulása az epochok függvényében.}
   \label{fig:training-curves}
 \end{figure}
 
@@ -236,18 +243,20 @@ két működési ponton.
 
 \begin{table}[H]
   \centering
-  \caption{A ViT modell teljesítménye a teszthalmazon, két működési ponton. [Kitöltendő a végleges futtatásból.]}
+  \caption{A ViT modell teljesítménye a teszthalmazon (60\,159 kép, 59 pozitív), két működési ponton.}
   \label{tab:vit-results}
   \begin{tabular}{lcc}
     \hline
     \textbf{Metrika} & \textbf{Érzékenység $\ge 0{,}90$} & \textbf{Érzékenység $\ge 0{,}80$} \\
     \hline
-    AUC (95\% CI)        & -- & -- \\
-    pAUC (TPR $\ge 0{,}80$) & -- & -- \\
-    Érzékenység (95\% CI) & -- & -- \\
-    Specificitás (95\% CI) & -- & -- \\
-    PPV / NPV             & -- & -- \\
-    Brier-pontszám        & -- & -- \\
+    AUC (95\% CI)          & \multicolumn{2}{c}{$0{,}939$ ($0{,}915$--$0{,}963$)} \\
+    pAUC (TPR $\ge 0{,}80$) & \multicolumn{2}{c}{$0{,}159$} \\
+    Brier-pontszám         & \multicolumn{2}{c}{$0{,}047$} \\
+    \hline
+    Küszöb                 & $0{,}170$ & $0{,}270$ \\
+    Érzékenység (95\% CI)  & $0{,}966$ ($0{,}883$--$0{,}996$) & $0{,}881$ ($0{,}771$--$0{,}951$) \\
+    Specificitás (95\% CI) & $0{,}668$ ($0{,}664$--$0{,}671$) & $0{,}843$ ($0{,}840$--$0{,}846$) \\
+    PPV / NPV              & $0{,}003$ / $1{,}000$ & $0{,}005$ / $1{,}000$ \\
     \hline
   \end{tabular}
 \end{table}
@@ -255,55 +264,115 @@ két működési ponton.
 A \ref{fig:roc}.~ábra a ViT modell ROC-görbéjét mutatja, kiemelve a pAUC
 számításához használt, $TPR \ge 0{,}80$ tartományt.
 
-% MEGJEGYZÉS (Ervin): includegraphics sor a fájl bemásolása után:
-% \includegraphics[width=0.7\textwidth]{images/results/roc_curve_test.png}
 \begin{figure}[H]
   \centering
-  \fbox{\begin{minipage}[c][4cm][c]{0.85\textwidth}
-    \centering\itshape
-    [Ábra helye] -- A ViT modell ROC-görbéje a teszthalmazon, a pAUC tartomány
-    kiemelésével (\texttt{roc\_curve\_test.png}).
-  \end{minipage}}
-  \caption{A ViT modell ROC-görbéje.}
+  \includegraphics[width=0.7\textwidth]{images/results/vit_roc_curve.png}
+  \caption{A ViT modell ROC-görbéje a teszthalmazon, a pAUC számításához használt
+    $TPR \ge 0{,}80$ tartomány kiemelésével.}
   \label{fig:roc}
 \end{figure}
 
 \subsection{Összehasonlítás a viszonyítási alapokkal}
 
-A \ref{tab:comparison}.~táblázat a három modellt -- a ViT-et, a ResNet-18
-konvolúciós alapot és a Gemini zero-shot modellt -- veti össze a közös
-teszt-részhalmazon, az AUC mint közvetlenül összehasonlítható mérőszám mentén.
+A \ref{tab:comparison}.~táblázat a négy modellt veti össze a két közvetlenül
+összehasonlítható minőség-mérőszám -- az AUC és a hivatalos ISIC 2024 pAUC --
+mentén. Mindkét mutató a modellek rangsorolási képességét méri, és független a
+döntési küszöbtől, így akkor is értelmes az összevetésük, ha az egyes modellek
+saját, szivárgásmentes (held-out) halmazukon kerültek kiértékelésre.
 
 \begin{table}[H]
   \centering
-  \caption{A három modell összehasonlítása a közös teszt-részhalmazon. [Kitöltendő a végleges futtatásból.]}
+  \caption{A négy modell összehasonlítása az AUC és a hivatalos pAUC mentén. Az
+    EVA02 a saját, szivárgásmentes validációs foldján szerepel (a modellt a teljes
+    adat 80\%-án tanították, így a mi teszthalmazunkon történő kiértékelése
+    adatszivárgást okozna); a Gemini csak egy 2\,000 elemű részhalmazon futott, a
+    pAUC-ja a korábbi (eltérő) definícióval készült, ezért nem szerepel.}
   \label{tab:comparison}
-  \begin{tabular}{lccc}
+  \begin{tabular}{lccl}
     \hline
-    \textbf{Modell} & \textbf{AUC} & \textbf{Érzékenység} & \textbf{Specificitás} \\
+    \textbf{Modell} & \textbf{AUC} & \textbf{pAUC} & \textbf{Kiértékelési halmaz} \\
     \hline
-    ResNet-18 (CNN, viszonyítási alap)   & -- & -- & -- \\
-    Gemini 2.5 Flash (zero-shot)         & -- & -- & -- \\
-    ViT-Base (saját, finomhangolt)       & -- & -- & -- \\
+    ViT-Base (saját, finomhangolt)     & $0{,}939$ & $0{,}159$ & teszt (60\,159, 59 poz.) \\
+    EVA02 (legjobb image-only ref.)    & $0{,}929$ & $0{,}158$ & val-fold (1\,651, 79 poz.) \\
+    ResNet-18 (CNN, viszonyítási alap) & $0{,}876$ & $0{,}122$ & teszt (60\,159, 59 poz.) \\
+    Gemini 2.5 Flash (zero-shot)       & $0{,}740$ & --        & részhalmaz (2\,000, 59 poz.) \\
     \hline
   \end{tabular}
 \end{table}
 
+A \ref{fig:model-comparison}.~ábra a négy modell AUC- és pAUC-értékeit
+szemlélteti.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{images/diagrams/model_comparison.png}
+  \caption{A négy modell összehasonlítása az AUC (bal) és a hivatalos ISIC 2024
+    pAUC (jobb) mentén. A Gemini pAUC-értéke nem szerepel, mivel az eltérő
+    definícióval, kisebb részhalmazon készült. A pAUC elméleti maximuma $0{,}20$.}
+  \label{fig:model-comparison}
+\end{figure}
+
+\paragraph{ViT kontra ResNet-18 (azonos teszthalmaz).} A két modell pontosan
+ugyanazon a teszthalmazon, azonos feldolgozási folyamattal került kiértékelésre,
+így a tanítási és kiértékelési feltételek nem zavaró tényezők (a kapacitásbeli
+különbségre az előző szakaszban tett megjegyzés mellett). A ViT minden mutatóban
+érdemben felülmúlja a ResNet-et: AUC $0{,}939$ kontra $0{,}876$,
+pAUC $0{,}159$ kontra $0{,}122$. A
+különbség a magas érzékenységű tartományban a legmarkánsabb: a $\ge 0{,}80$
+érzékenységi ponton a specificitás $0{,}843$ kontra $0{,}625$, a $\ge 0{,}90$
+ponton pedig $0{,}668$ kontra $0{,}400$ -- vagyis a ViT azonos érzékenység
+mellett lényegesen kevesebb téves riasztást ad.
+
+\paragraph{ViT kontra EVA02 (a legjobb image-only Kaggle modell).} A ViT-Base
+gyakorlatilag egyenrangú a verseny legerősebb tisztán képi modelljével: a
+hivatalos pAUC szinte azonos ($0{,}159$ kontra $0{,}158$), az AUC pedig
+hasonló ($0{,}939$ kontra $0{,}929$). Mivel mindkettő szivárgásmentes halmazon, a
+hivatalos metrikával készült, a párhuzam tisztességes -- noha nem ugyanazon a
+halmazon. Fontos azonban, hogy az EVA02 a natív $336\times336$ felbontásán fut
+(szemben a ViT $224\times224$-ével), ezért ez nem szigorú, azonos felbontású
+kontroll, hanem a legjobb publikált image-only megoldással szembeni viszonyítás.
+A két modell specificitása nem vethető össze közvetlenül, mivel az EVA02
+kiértékelési halmaza jóval kisebb és eltérő prevalenciájú.
+
+\paragraph{ViT kontra Gemini (zero-shot).} A célzott betanítás nélküli, általános
+célú Gemini modell jelentősen elmarad (AUC $0{,}740$): hajlamos a legtöbb
+elváltozást gyanúsnak jelölni, ezért a specificitása alacsony. Ez megerősíti a
+rendszer tervezési döntését, amely a klasszifikációt egy célzottan betanított
+modellre, a magyarázatot pedig a nagy nyelvi modellre bízza.
+
 \subsection{Statisztikai elemzés}
 
-% MEGJEGYZÉS (Ervin): ide kerül a DeLong-teszt eredménye (z, p) a ViT vs ResNet-18
-% és a ViT vs Gemini összehasonlításra, valamint a konfidencia-intervallumok
-% értelmezése. Kitöltendő a végleges futtatásból.
-A modellek közötti AUC-különbségek statisztikai szignifikanciáját a DeLong-féle
-páros teszttel vizsgáltuk; az eredményeket és azok értelmezését a végleges
-futtatások alapján egészítjük ki. \textit{[Az értékek a végleges futtatásból
-kerülnek be.]}
+A modellek rangsorolási teljesítményének bizonytalanságát a DeLong-féle 95\%-os
+konfidencia-intervallumok jellemzik. A ViT AUC-jának intervalluma
+($0{,}915$--$0{,}963$) és a ResNet-é ($0{,}837$--$0{,}914$) gyakorlatilag nem
+fed át, ami a két modell közötti különbség statisztikai szignifikanciájára utal.
+A mentett predikciókból a DeLong-féle páros teszt formálisan is elvégezhető, mivel
+a ViT és a ResNet ugyanazon a teszthalmazon került kiértékelésre.
+
+A valószínűségi kalibrációt a Brier-pontszám jellemzi. Mindkét képi modell
+Brier-pontszáma (ViT: $0{,}047$, ResNet: $0{,}075$) magasabb a triviális, a
+prevalenciát jósló alapvonalénál ($0{,}001$), ami a kimeneti valószínűségek
+gyenge kalibráltságát jelzi -- ez az erős osztály-egyensúlytalanság és a
+kiegyensúlyozott mintavételezés ismert következménye. A ViT ugyanakkor jobban
+kalibrált, mint a ResNet. Hangsúlyozandó, hogy a \textit{rangsorolás} (AUC, pAUC)
+erős; a nyers valószínűségek utólagos kalibrálása a jövőbeli munka tárgya.
 
 \subsection{Az eredmények megbeszélése és korlátai}
 
-% MEGJEGYZÉS (Ervin): ezt a részt a tényleges számok birtokában véglegesítjük.
-Az eredmények értelmezésekor figyelembe kell venni a teszthalmaz korlátozott
-pozitív elemszámát (59 rosszindulatú eset), amely a metrikák -- különösen az
-érzékenység és a pAUC -- becslését érzékennyé teszi a mintavételi zajra; ezt a
-bizonytalanságot a megadott konfidencia-intervallumok tükrözik. A részletes
-megbeszélés a végleges eredmények birtokában kerül kidolgozásra.
+Az eredmények fő tanulsága, hogy a finomhangolt ViT-Base modell eléri a verseny
+legjobb tisztán képi megoldásának (EVA02) szintjét, miközben jelentősen felülmúlja
+mind a klasszikus konvolúciós alapot (ResNet-18), mind a zero-shot nagy nyelvi
+modellt (Gemini). A magas érzékenységű működési ponton mért közel tökéletes
+negatív prediktív érték (NPV $\approx 1{,}0$) klinikai szűrőeszközként kedvező: a
+,,jó\-indulatú'' besorolás megbízható.
+
+Az értelmezésnél több korlátot figyelembe kell venni. \emph{(i)} A teszthalmazban
+csak 59 pozitív eset szerepel, ami a metrikák -- különösen az érzékenység és a
+pAUC -- becslését érzékennyé teszi a mintavételi zajra; ezt a megadott
+konfidencia-intervallumok tükrözik. \emph{(ii)} A pozitív prediktív érték (PPV)
+nagyon alacsony ($\approx 0{,}005$), ami az extrém, $\sim 1{:}1000$ arányú
+osztály-egyensúlytalanság közvetlen következménye -- nagyszámú negatív eset
+mellett még jó specificitás mellett is sok a téves pozitív. \emph{(iii)} Az EVA02
+eltérő (kisebb, magasabb prevalenciájú) halmazon és felbontáson került
+kiértékelésre, ezért referenciaként, nem szigorú kontrollként értelmezendő.
+\emph{(iv)} A kimeneti valószínűségek kalibrációja további javítást igényel.

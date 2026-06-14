@@ -74,19 +74,13 @@ illetve felhőszolgáltatásokat használják. A komponensek és kapcsolataik
   adatbázis (Firestore) és fájltárolás (Storage).
 \end{itemize}
 
-% MEGJEGYZÉS (Ervin): ide készíts egy komponens-/architektúradiagramot
-% (Android + Web -> Flask/FastAPI -> MCP -> Colab ViT; valamint Firebase és Gemini).
-% Pl. draw.io-val rajzolt ábra illeszthető ide.
 \begin{figure}[H]
   \centering
-  \fbox{\begin{minipage}[c][5cm][c]{0.9\textwidth}
-    \centering\itshape
-    [Ábra helye] -- A DermAI rendszer komponensdiagramja: a két kliens
-    (Android, web), a hozzájuk tartozó backendek (Flask, FastAPI), a modellt
-    kiszolgáló MCP-réteg és a GPU-n futó ViT, valamint a Firebase és a Gemini
-    szolgáltatások kapcsolatai. (Saját szerkesztésű ábrát illessz be.)
-  \end{minipage}}
-  \caption{A DermAI rendszer magas szintű architektúrája.}
+  \includegraphics[width=\textwidth]{images/diagrams/system_architecture.png}
+  \caption{A DermAI rendszer magas szintű architektúrája: a két kliens (Android,
+    web), a hozzájuk tartozó backendek (Flask, FastAPI), a modellt kiszolgáló
+    MCP-réteg és a GPU-n futó ViT, valamint a Firebase és a Gemini szolgáltatások
+    kapcsolatai.}
   \label{fig:architecture}
 \end{figure}
 
