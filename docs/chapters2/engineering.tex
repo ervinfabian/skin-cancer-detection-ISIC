@@ -1,0 +1,439 @@
+% =============================================================================
+% 5. fejezet — A rendszer tervezése és megvalósítása
+% =============================================================================
+
+Ez a fejezet a DermAI rendszer mérnöki megvalósítását mutatja be: a betanított
+osztályozó modellt egy teljes, végponttól végpontig működő alkalmazássá
+egészíti ki, amely okostelefonon és webböngészőben egyaránt elérhető. Először a
+követelményeket és a rendszerarchitektúrát ismertetjük, majd komponensenként a
+megvalósítást: a modellt kiszolgáló réteget, a backendet, a mobil- és
+webalkalmazást, a hitelesítést és a felhőalapú adattárolást, végül a hálózati
+hibatűrést és a biztonsági megfontolásokat.
+
+% =============================================================================
+\section{Követelmények}
+% =============================================================================
+
+A rendszerrel szemben támasztott elvárások két forrásból fakadnak: egyrészt a
+dolgozat céljából -- egy nem szakértő felhasználó által, hétköznapi eszközön
+végigvihető szűrési folyamatból --, másrészt a megvalósítás valós
+körülményeiből: a változó hálózati elérhetőségből, az érzékeny egészségügyi
+adatok kezeléséből és a korlátozott, gyakran cserélődő GPU-erőforrásból. Az
+alábbiakban előbb a funkcionális, majd a nem-funkcionális elvárásokat foglaljuk
+össze.
+
+\subsection{Funkcionális követelmények}
+
+A rendszerrel szemben támasztott fő funkcionális elvárások a következők:
+
+\begin{itemize}
+  \item A felhasználó fényképet készíthet vagy tölthet fel egy
+  bőrelváltozásról (kamera vagy galéria).
+  \item A rendszer a feldolgozás előtt ellenőrzi a kép minőségét és
+  relevanciáját, és elutasítja az értékelhetetlen felvételeket.
+  \item A bőrelváltozást egy ViT-alapú modell osztályozza
+  (jó\-indulatú / rosszindulatú), konfidencia-értékkel.
+  \item A rendszer természetes nyelvű magyarázatot ad az eredményről, az
+  ABCDE-szabály figyelembevételével.
+  \item A felhasználó utólagos kérdéseket tehet fel az elváltozással
+  kapcsolatban (párbeszéd).
+  \item A felhasználó bejelentkezik, és a feltöltött képek, valamint a
+  beszélgetések a saját fiókjához kötve, biztonságosan tárolódnak.
+\end{itemize}
+
+A rendszer fő használati eseteit a \ref{fig:usecase}.~ábra foglalja össze.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{uml/usecase.png}
+  \caption{A rendszer használati eset diagramja: a felhasználó fő céljai, valamint
+    az ,,elváltozás elemzése'' use case kötelező lépései (képvalidáció,
+    osztályozás, magyarázat).}
+  \label{fig:usecase}
+\end{figure}
+
+\subsection{Nem-funkcionális követelmények}
+
+\begin{itemize}
+  \item \textbf{Reszponzivitás:} az AI-válaszok token-szintű, fokozatos
+  megjelenítése, hogy a felhasználó ne egy hosszú várakozás után, hanem
+  folyamatosan kapjon visszajelzést.
+  \item \textbf{Hibatűrés:} a rendszer alkalmazkodjon a változó hálózati
+  körülményekhez és a modellt kiszolgáló komponens időszakos
+  elérhetetlenségéhez.
+  \item \textbf{Biztonság:} a felhasználói adatok hitelesített hozzáférés mögött,
+  felhasználónként elkülönítve tárolódjanak; a titkos kulcsok ne kerüljenek a
+  forráskódba.
+  \item \textbf{Hordozhatóság:} a modellt kiszolgáló komponens címe futás közben
+  módosítható legyen, hogy a (gyakran változó címen elérhető) GPU-háttér
+  újraindítása ne igényelje az alkalmazás újratelepítését.
+\end{itemize}
+
+Ezek a nem-funkcionális elvárások közvetlenül alakították a rendszer felépítését:
+a reszponzivitást a token-szintű adatfolyam (SSE), a hibatűrést az
+újrapróbálkozó hálózati réteg és az önjavító modellkliens, a hordozhatóságot a
+modellkiszolgáló futásidejű címfrissítése, a biztonságot pedig a hitelesített
+végpontok és a felhasználónként elkülönített tárolás valósítja meg. E megoldások
+részleteit a következő szakaszok tárgyalják.
+
+% =============================================================================
+\section{Rendszerarchitektúra}
+% =============================================================================
+
+A DermAI több, jól elkülönülő komponensből álló, elosztott rendszer. A két
+kliens (Android alkalmazás és webes felület) külön-külön backendhez kapcsolódik,
+amelyek azonban közös elveken működnek, és ugyanazt a modellt kiszolgáló réteget,
+illetve felhőszolgáltatásokat használják. A komponensek és kapcsolataik
+áttekintését a \ref{fig:architecture}.~ábra mutatja.
+
+\begin{itemize}
+  \item \textbf{Android alkalmazás} (Kotlin) -- a mobil kliens; a
+  \textbf{Flask} alapú backendhez \cite{flask} kapcsolódik.
+  \item \textbf{Webes felület} (HTML/JavaScript) -- a böngészőkliens; a
+  \textbf{FastAPI} alapú backendhez \cite{fastapi} kapcsolódik.
+  \item \textbf{Modellt kiszolgáló réteg} -- egy MCP-szerver
+  \cite{mcp2024}, amely a GPU-n futó ViT modellt szólítja meg.
+  \item \textbf{Gemini 2.5 Flash} \cite{gemini2023} -- a képvalidációt, a
+  magyarázatgenerálást és a párbeszédet végző nagy nyelvi modell.
+  \item \textbf{Firebase} \cite{firebase} -- hitelesítés (Authentication),
+  adatbázis (Firestore) és fájltárolás (Storage).
+\end{itemize}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{uml/component.png}
+  \caption{A rendszer komponens-diagramja: a kliensek (Android, web), a backendek
+    (Flask, FastAPI), a modellt kiszolgáló MCP-réteg és a GPU-n futó ViT, valamint
+    a Firebase és a Gemini szolgáltatások, a köztük lévő kommunikációs
+    protokollokkal.}
+  \label{fig:architecture}
+\end{figure}
+
+A rendszer rétegzett, a felelősségi körök szerint szétválasztott felépítést
+követ. A kliensek kizárólag a felhasználói interakcióért és a megjelenítésért
+felelnek; az üzleti logikát -- a kérések összehangolását, a külső szolgáltatások
+hívását és a hozzáférés-ellenőrzést -- a backend végzi; a számításigényes
+modellinferencia pedig egy külön, GPU-val rendelkező rétegbe került. Ez a
+szétválasztás lehetővé teszi, hogy az egyes komponensek egymástól függetlenül
+legyenek fejleszthetők, cserélhetők és skálázhatók.
+
+A backend tölti be a központi összehangoló (orkesztrátor) szerepét: ez fogadja a
+kliensek kéréseit, ellenőrzi a hitelesítő tokent, majd sorrendben meghívja a
+képvalidációt (Gemini), az osztályozást (a modellt kiszolgáló rétegen keresztül a
+ViT) és a magyarázatgenerálást, közben pedig gondoskodik az adatok tartós
+tárolásáról (Firebase). A kliensek így soha nem érik el közvetlenül sem a
+modellt, sem a nagy nyelvi modellt -- minden külső hívás a backenden,
+hitelesített végpontok mögött történik, ami biztonsági szempontból is előnyös.
+
+Két tervezési döntés emelendő ki. Egyrészt a modellt kiszolgáló réteg tudatosan
+le van választva a backendről: a ViT egy önálló, GPU-s környezetben fut, amelyet
+a backend az MCP-rétegen keresztül ér el; a GPU-háttér (gyakran változó) nyilvános
+címe futás közben átállítható, így annak újraindítása vagy cseréje nem igényli a
+backend módosítását.
+Másrészt a két mesterséges intelligencia komponens szerepe szigorúan elkülönül: a
+kvantitatív döntést a célzottan betanított ViT hozza, míg a nagy nyelvi modell
+(Gemini) szerepe a bemenet ellenőrzésére, az eredmény közérthető magyarázatára és
+a párbeszédre korlátozódik.
+
+\subsection{Egy elemzési kérés életciklusa}
+
+Egy kép elemzésének tipikus folyamata a következő lépésekből áll:
+
+\begin{enumerate}
+  \item A kliens elküldi a képet és a hitelesítő tokent a backendnek.
+  \item A backend ellenőrzi a tokent, majd a képet a Gemini modellnek továbbítja
+  \textit{minőség- és relevanciaellenőrzésre}. Ha a kép nem értékelhető (pl.
+  nem bőrelváltozás, túl távoli, életlen vagy több léziót tartalmaz), a folyamat
+  itt megszakad, és a felhasználó célzott visszajelzést kap.
+  \item Megfelelő kép esetén a backend feltölti a képet a felhasználó
+  tárhelyére (Firebase Storage), majd az MCP-rétegen keresztül lefuttatja a
+  ViT-osztályozást.
+  \item A backend létrehozza vagy frissíti a munkamenet rekordját a Firestore
+  adatbázisban.
+  \item A backend a klasszifikációs eredményt belefoglalja a Gemini számára
+  összeállított utasításba, és a magyarázatot \textbf{token-szintű
+  adatfolyamként} (SSE) küldi vissza a kliensnek.
+\end{enumerate}
+
+A folyamat teljes lefutását a \ref{fig:sequence-analyze}.~ábra szekvenciadiagramja
+szemlélteti.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{uml/sequence_analyze.png}
+  \caption{Egy elemzési kérés (\texttt{/analyze}) szekvenciadiagramja: a kliens, a
+    backend, a Gemini, az MCP-szerver, a ViT és a Firebase interakciói. Az elágazás
+    (\textit{alt}) az értékelhetetlen kép esetét, a ciklus (\textit{loop}) a
+    token-szintű (SSE) válasz továbbítását jelöli.}
+  \label{fig:sequence-analyze}
+\end{figure}
+
+A folyamat két eleme érdemel külön figyelmet. A Gemini-alapú \emph{előzetes
+képvalidáció} kapuként működik: az értékelhetetlen felvételeket még a
+számításigényesebb osztályozás előtt kiszűri, csökkentve a felesleges
+erőforrás-használatot és annak kockázatát, hogy a felhasználó értelmezhetetlen
+képre kapjon megtévesztő eredményt. A magyarázat \emph{token-szintű,
+szerver-küldött eseményekkel} (SSE) történő visszaküldése pedig azt biztosítja,
+hogy a felhasználó ne egy hosszú várakozás után, hanem fokozatosan, a
+generálással egyidejűleg kapja meg a választ.
+
+% =============================================================================
+\section{A modellt kiszolgáló komponens: MCP-szerver}
+% =============================================================================
+
+A betanított ViT modell a backendtől elkülönített, GPU-val rendelkező
+környezetben (Google Colab) fut, és HTTP-végponton fogadja a
+klasszifikációs kéréseket. A backend és e modellkiszolgáló közötti
+kommunikációt egy MCP- (Model Context Protocol) szerver \cite{mcp2024} közvetíti,
+amely a backendből indított alfolyamatként, szabványos be- és kimeneti (stdio)
+csatornán, JSON-RPC 2.0 üzenetekkel \cite{jsonrpc2013} kommunikál. A szerver
+egyetlen eszközt (tool) tesz közzé, a \texttt{classify\_lesion} függvényt; egy
+klasszifikációs kérés üzenetformátuma például:
+
+\begin{verbatim}
+{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+ "params": {"name": "classify_lesion",
+            "arguments": {"image_base64": "..."}}}
+\end{verbatim}
+
+Az MCP-szerver a kapott, base64 kódolású képet továbbítja a GPU-n futó modell
+\texttt{/classify} végpontjának, és a választ -- a címkét, a konfidenciát és az
+osztályonkénti pontszámokat -- adja vissza a backendnek. A megoldás egyik
+kulcseleme egy \texttt{update\_model\_url} metódus, amely lehetővé teszi a
+modellkiszolgáló címének \textbf{futás közbeni} módosítását: mivel a GPU-háttér
+újraindításakor a nyilvános cím (alagút) megváltozik, e mechanizmus révén a
+backend új cím esetén sem igényel újraindítást. A modellt kiszolgáló réteg
+ilyen módon történő leválasztása lehetővé teszi, hogy a GPU-háttér bármikor
+újraindítható vagy lecserélhető legyen anélkül, hogy a backend kódját módosítani
+kellene.
+
+% =============================================================================
+\section{A backend}
+% =============================================================================
+
+A rendszer két backendet tartalmaz, amelyek a két klienst szolgálják ki, de
+azonos belső felépítést követnek. A mobil kliens egy \textbf{Flask}
+\cite{flask} alapú szervert, a webes felület pedig egy \textbf{FastAPI}
+\cite{fastapi} alapú szervert használ. Mindkét backend ugyanazt az MCP-klienst,
+ugyanazt a Gemini-integrációt és ugyanazokat a Firebase-szolgáltatásokat
+használja. A FastAPI aszinkron működése a webes streaminghez, a Flask
+egyszerűsége pedig a mobil végpontok kiszolgálásához bizonyult kényelmesnek.
+
+A két szerver egy közös belső magra épül: ugyanazokat a modulokat használják a
+modellkiszolgáló elérésére (MCP-kliens), a Gemini-integrációra és a
+Firebase-műveletekre. Így a kétféle kiszolgálás viselkedése következetes marad,
+és az üzleti logika nem duplikálódik a két kódbázisban -- a két backend
+gyakorlatilag csak a webes keretrendszerben és a kérés-/válaszkezelés módjában
+(szinkron, illetve aszinkron) tér el.
+
+\subsection{Végpontok}
+
+A webes (FastAPI) backend főbb végpontjait a \ref{tab:endpoints}.~táblázat
+foglalja össze; a mobil (Flask) backend ezekkel funkcionálisan egyenértékű
+végpontokat biztosít.
+
+\begin{table}[H]
+  \centering
+  \caption{A webes backend (FastAPI) főbb végpontjai.}
+  \label{tab:endpoints}
+  \begin{tabular}{lll}
+    \hline
+    \textbf{Metódus} & \textbf{Útvonal} & \textbf{Funkció} \\
+    \hline
+    POST & \texttt{/analyze}            & Kép elemzése (validálás, osztályozás, magyarázat) \\
+    POST & \texttt{/chat}               & Utólagos kérdés (kép nélkül), párbeszéd \\
+    GET  & \texttt{/history/\{id\}}     & Egy korábbi munkamenet lekérése \\
+    GET  & \texttt{/sessions}           & A felhasználó munkameneteinek listája \\
+    PUT  & \texttt{/model-url}          & A modellkiszolgáló címének frissítése \\
+    GET  & \texttt{/health}             & Állapotellenőrzés \\
+    \hline
+  \end{tabular}
+\end{table}
+
+A végpontok REST-elvűek és állapotmentesek: minden kérés önállóan hordozza a
+hitelesítő tokent, a munkamenet állapotát pedig nem a szerver memóriája, hanem a
+Firestore tárolja. Ez egyszerűsíti a kiszolgálást, és megkönnyíti a backend
+esetleges vízszintes skálázását.
+
+\subsection{A Gemini integrációja és a képvalidáció}
+
+A nagy nyelvi modell (Gemini 2.5 Flash) a rendszerben három feladatot lát el. Az
+\textbf{elsődleges szűrés} során a feltöltött képet egy rögzített utasítással
+értékeli, amely egyetlen kódot kér vissza: \texttt{OK} (értékelhető),
+\texttt{NOT\_SKIN}, \texttt{TOO\_FAR}, \texttt{MULTIPLE}, \texttt{BLURRY} vagy
+\texttt{NOT\_ASSESSABLE}. Ha a kód nem \texttt{OK}, a felhasználó a hibának
+megfelelő, célzott útmutatást kap (például: tartsa közelebb a kamerát, vagy
+fényképezzen egyetlen léziót). A \textbf{magyarázatgenerálás} során a Gemini a
+ViT klasszifikációs eredményét beépítve, az ABCDE-szabály szerint értelmezi az
+elváltozást, közérthető nyelven. Végül a Gemini kezeli a felhasználó
+\textbf{utólagos kérdéseit} is, a beszélgetés előzményeinek figyelembevételével.
+Ez a munkamegosztás tudatos tervezési döntés: a kvantitatív osztályozást a
+célzottan betanított ViT végzi, a nyelvi modell pedig az erősségeire -- a
+közérthető magyarázatra és a párbeszédre -- összpontosít.
+
+\subsection{Token-szintű adatfolyam (SSE)}
+
+A reszponzív felhasználói élmény érdekében a Gemini válaszait nem egyben, hanem
+token-szintű adatfolyamként továbbítjuk a kliensnek, szerver-küldött események
+(Server-Sent Events) formájában \cite{whatwg_sse}. Az adatfolyam egyes
+eseményei egy-egy szövegdarabot tartalmaznak, a lezárást pedig egy különleges
+jelző jelzi:
+
+\begin{verbatim}
+data: {"session_id": "...", "image_url": "...", "classification": {...}}
+data: {"token": "Az elváltozás "}
+data: {"token": "aszimmetrikus, ..."}
+data: [DONE]
+\end{verbatim}
+
+Így a felhasználó a szöveget a generálással egyidejűleg, folyamatosan látja
+megjelenni. Az első adatfolyam-esemény a munkamenet metaadatait (azonosító,
+feltöltött kép URL-je, klasszifikáció) hordozza, így a kliens már a szöveges
+válasz előtt frissítheti a felületet.
+
+% =============================================================================
+\section{A mobilalkalmazás}
+% =============================================================================
+
+A mobil kliens natív Android alkalmazás, Kotlin nyelven, az MVVM (Model--View--ViewModel)
+mintát követve. Indításkor egy bejelentkező képernyő (\texttt{LoginActivity})
+fogadja a felhasználót, ahol Google-fiókkal jelentkezhet be; sikeres hitelesítés
+után a fő képernyőre (\texttt{MainActivity}) jut.
+
+A fő képernyő chat-alapú felületet biztosít: a felhasználó a kamerával
+fényképet készíthet, vagy a galériából választhat képet, majd szöveges üzenettel
+együtt elküldheti azt elemzésre. A beérkező AI-válaszokat a felület token-szintű
+adatfolyamként, folyamatosan jeleníti meg, a klasszifikáció eredményét pedig egy
+színkódolt jelvény (jó\-indulatú / rosszindulatú) emeli ki. A jobb felső sarokban
+elérhető menü három funkciót kínál: új beszélgetés indítása (\textit{New Chat}),
+az alkalmazás ismertetője (\textit{About}) és a kijelentkezés (\textit{Sign out}).
+
+Az MVVM-minta szétválasztja a felületet és az állapotkezelést, ami egy
+adatfolyam-alapú, hosszan futó interakciónál -- a token-szintű válaszok
+fokozatos megjelenítésénél -- különösen előnyös. A felület a klasszifikáció
+eredményét tudatosan \emph{kockázati jelzésként}, nem diagnózisként jeleníti
+meg, összhangban a rendszer tájékoztató jellegével.
+
+\subsection{Kameramodul és makrófelvétel}
+
+A bőrelváltozások fényképezéséhez a közeli (makró) fókusz elengedhetetlen. Az
+alkalmazás ezért egy dedikált \texttt{CameraActivity} osztályt használ, amely a
+CameraX könyvtárra épül. A modul a \texttt{CameraManager} segítségével
+felsorolja az eszköz hátsó kameráit, és a legkisebb fókusztávolságot támogató
+kamerát választja ki, lehetővé téve az elváltozás éles, közeli felvételét; a kép
+rögzítése a legjobb minőséget célzó módban történik. Így az alkalmazás a makró
+lencsével rendelkező készülékeken is kihasználja azok közelfókuszáló képességét.
+
+\subsection{Hálózati réteg}
+
+Az alkalmazás hálózati rétege az OkHttp és a Retrofit könyvtárakra épül. A
+streaming (SSE) válaszokat egy Kotlin \texttt{Flow} kezeli, az állapotot pedig
+egy \texttt{ChatViewModel} tartja karban, így az adatfolyam a képernyő-forgatást
+is túléli. Minden kéréshez egy elfogó (\texttt{AuthInterceptor}) automatikusan
+hozzáfűzi a felhasználó Firebase azonosítótokenjét. A backend címét egy
+beállítási réteg (\texttt{NetworkConfig}) tárolja a \texttt{SharedPreferences}-ben,
+amely a fordításkor beállított alapértelmezett címről indul -- ez teszi lehetővé,
+hogy az alkalmazás ott keresse a backendet, ahol az ténylegesen elérhető.
+
+% =============================================================================
+\section{A webes felület}
+% =============================================================================
+
+A webes felület egy egyoldalas, sötét témájú alkalmazás, amely a FastAPI backend
+által kiszolgált sablonra épül. A felület a Firebase JavaScript SDK-t használja a
+Google-alapú bejelentkezéshez: amíg a felhasználó nincs bejelentkezve, egy
+bejelentkező réteg takarja a felületet, sikeres hitelesítés után pedig
+megjelenik a chat-felület. Minden, a backendhez intézett kérés tartalmazza a
+felhasználó hitelesítő tokenjét. A felületen egy beépített, lapváltás nélküli
+ismertető (About) ablak érhető el, amely megőrzi a beszélgetés addigi tartalmát;
+kijelentkezéskor a felület a helyi állapotot (üzenetek, munkamenet-azonosító) is
+törli. A token-szintű válaszokat a böngésző a szerver-küldött események
+feldolgozásával jeleníti meg fokozatosan.
+
+A webes kliens szándékosan keretrendszer nélküli (sima HTML, CSS és JavaScript):
+ez az egyszerű, build-lépést nem igénylő felépítés elegendő a chat-alapú
+felülethez, és a FastAPI által kiszolgált egyetlen sablonból közvetlenül
+futtatható. Funkcionálisan a webes és a mobil kliens ugyanazt a folyamatot
+kínálja, így a felhasználó a platformtól függetlenül azonos élményt kap.
+
+% =============================================================================
+\section{Hitelesítés és felhőalapú adattárolás}
+% =============================================================================
+
+A rendszer a Firebase szolgáltatásait \cite{firebase} használja a
+hitelesítéshez és az adattároláshoz.
+
+\subsection{Hitelesítés}
+
+A bejelentkezés mindkét platformon Google-fiókkal, a Firebase Authentication
+segítségével történik. A kliens a sikeres bejelentkezés után egy
+azonosító\-tokent (ID token) kap, amelyet minden backend-kéréshez mellékel az
+\texttt{Authorization} fejlécben. A backend e tokent szerveroldalon ellenőrzi a
+Firebase Admin SDK segítségével, és a kérésből kinyeri a felhasználó egyedi
+azonosítóját (\texttt{uid}) és e-mail-címét; érvénytelen vagy hiányzó token
+esetén a kérést elutasítja.
+
+\subsection{Adatbázis és fájltárolás}
+
+A munkameneteket a Firestore adatbázis tárolja, munkamenetenként egy
+dokumentumban, amely tartalmazza a tulajdonos azonosítóját és e-mail-címét, a
+klasszifikáció eredményét, a feltöltött kép azonosítóját és a beszélgetés
+üzeneteit. A dokumentum szerkezete vázlatosan:
+
+\begin{verbatim}
+sessions/{session_id}
+   user_id        : a tulajdonos Firebase-azonosítója
+   user_email     : a tulajdonos e-mail-címe
+   created_at     : létrehozás időbélyege
+   source         : "web" vagy "android"
+   image_id       : a feltöltött kép azonosítója
+   classification : {label, confidence, all_scores}
+   messages       : [{role, text, timestamp}, ...]
+\end{verbatim}
+
+A feltöltött képeket a Firebase Storage tárolja, \textbf{felhasználónként
+elkülönített} útvonalon: \texttt{users/\{uid\}/lesions/\{image\_id\}.jpg}. Így a
+képek a feltöltő felhasználó fiókjához kötődnek, és a munkamenetek listázásakor a
+backend a tulajdonos azonosítója szerint szűr, biztosítva, hogy minden
+felhasználó kizárólag a saját adatait érje el.
+
+% =============================================================================
+\section{Hálózati robusztusság és hibatűrés}
+% =============================================================================
+
+Mivel a rendszer több, egymástól független szolgáltatásra támaszkodik -- és a
+modellt kiszolgáló GPU-háttér címe is változhat --, a hálózati hibatűrés
+kiemelt tervezési szempont volt. A megvalósított mechanizmusok:
+
+\begin{itemize}
+  \item \textbf{Újrapróbálkozás exponenciális visszalépéssel.} A REST-hívásokhoz
+  egy OkHttp-elfogó (interceptor), az SSE-adatfolyamhoz pedig a Kotlin
+  \texttt{Flow} \texttt{retryWhen} operátora biztosít automatikus
+  újrapróbálkozást átmeneti hálózati hiba esetén.
+  \item \textbf{Az MCP-kliens önjavítása.} A backend MCP-kliense a sikertelen
+  hívásokat többször újrapróbálja, és szükség esetén újraindítja a modellt
+  kiszolgáló alfolyamatot.
+  \item \textbf{Dinamikus címkezelés.} A modellkiszolgáló címe futás közben
+  frissíthető (\texttt{update\_\allowbreak model\_\allowbreak url}, illetve a \texttt{/model-url}
+  végpont), a backend címe pedig a kliensoldali beállításokban módosítható, így
+  a rendszer alkalmazkodik a változó nyilvános címekhez.
+\end{itemize}
+
+% =============================================================================
+\section{Biztonsági megfontolások}
+% =============================================================================
+
+A rendszer a titkos kulcsokat (a Gemini API-kulcsot és a Firebase hozzáférési
+adatokat) környezeti változókból, futásidőben tölti be, és \textbf{soha nem
+tárolja a forráskódban}; e fájlokat a verziókezelés is kizárja. A backend minden
+védett végponton ellenőrzi a Firebase azonosítótokent, így a klasszifikációs és
+párbeszéd-funkciók kizárólag hitelesített felhasználók számára érhetők el. A
+felhasználói adatok -- a feltöltött képek és a munkamenetek -- felhasználónként
+elkülönítve tárolódnak, így egy felhasználó nem férhet hozzá más adataihoz.
+
+Hangsúlyozandó továbbá, hogy a rendszer kialakítása tudatosan
+\textbf{tájékoztató jellegű}: a klasszifikációt egy célzottan betanított
+képi osztályozó modell végzi, míg a nagy nyelvi modell szerepe a magyarázatra és a
+párbeszédre korlátozódik. A rendszer nem helyettesíti a szakorvosi diagnózist,
+hanem szűrőeszközként segíti a felhasználót a dermatológiai konzultáció
+szükségességének megítélésében.

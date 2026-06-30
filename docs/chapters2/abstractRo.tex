@@ -1,0 +1,27 @@
+Cancerul de piele, în special melanomul, este foarte tratabil atunci când este
+depistat precoce, însă șansele de supraviețuire scad în stadiile avansate; în
+același timp, accesul la îngrijire dermatologică de specialitate este distribuit
+inegal la nivel mondial. De aceea, scopul prezentei lucrări este de a prezenta un
+model de inteligență artificială bazat pe învățare profundă, capabil să clasifice
+leziunile cutanate pe baza imaginilor, precum și sistemul de ``screening al
+cancerului de piele'' construit în jurul acestuia, accesibil atât într-un browser
+web, cât și pe dispozitive mobile, care semnalează în ce măsură este justificată
+examinarea de specialitate a unei leziuni cutanate.
+
+Drept clasificator am folosit un model Vision Transformer (ViT) ajustat fin prin
+învățare prin transfer, antrenat pe baza de date ISIC 2024, devenind astfel
+potrivit pentru clasificarea imaginilor non-dermatoscopice de leziuni cutanate.
+Am comparat modelul cu o rețea convoluțională ResNet-18 antrenată în condiții
+identice, cu modelul EVA02 câștigător al competiției ISIC și cu modelul lingvistic
+de mari dimensiuni Gemini 2.5 Flash. Pe setul de testare, modelul ViT ajustat fin
+a atins un AUC de $0{,}939$, depășind substanțial modelul convoluțional de
+referință și egalând nivelul EVA02.
+
+Am extins modelul de clasificare antrenat într-o aplicație completă, cuprinzând
+clienți mobili și web, un strat MCP care servește modelul, validarea imaginilor și
+explicații în limbaj natural bazate pe Gemini, precum și stocare în cloud
+autentificată și separată pe utilizatori.
+
+\textbf{Cuvinte cheie}: cancer de piele, melanom, învățare profundă, Vision
+Transformer, învățare prin transfer, ISIC 2024, model lingvistic de mari
+dimensiuni, sănătate mobilă

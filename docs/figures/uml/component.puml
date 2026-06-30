@@ -1,0 +1,66 @@
+@startuml component
+' A rendszer komponens-diagramja (rétegzett, derékszögű vonalvezetés)
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam dpi 200
+skinparam linetype ortho
+skinparam componentStyle uml2
+skinparam nodesep 22
+skinparam ranksep 70
+skinparam component {
+  BorderColor #2563eb
+  BackgroundColor #e0f2fe
+  FontColor #1f2933
+}
+skinparam node {
+  BorderColor #7c3aed
+  BackgroundColor #ede9fe
+  FontColor #1f2933
+}
+skinparam cloud {
+  BorderColor #ea580c
+  BackgroundColor #fff7ed
+  FontColor #1f2933
+}
+left to right direction
+
+actor "Felhasználó" as U
+
+package "Kliensek" {
+  [Android\n(Kotlin, MVVM)] as AND
+  [Webes felület\n(HTML / JS)] as WEB
+}
+
+package "Alkalmazásszerver" {
+  [Flask\nbackend] as FL
+  [FastAPI\nbackend] as FA
+  [MCP-szerver] as MCP
+}
+
+node "GPU-szerver" {
+  [ViT modell] as VIT
+}
+
+cloud "Google felhő" {
+  [Gemini 2.5 Flash] as GEM
+  [Firebase\n(Auth · Firestore · Storage)] as FB
+}
+
+U --> AND
+U --> WEB
+
+AND --> FL : REST + SSE
+WEB --> FA : REST + SSE
+
+FL --> MCP : JSON-RPC 2.0
+FA --> MCP : JSON-RPC 2.0
+MCP --> VIT : HTTP (alagút)
+
+FL --> GEM : HTTPS
+FA --> GEM : HTTPS
+
+FL --> FB : adat
+FA --> FB : adat
+AND --> FB : hitelesítés
+WEB --> FB : hitelesítés
+@enduml

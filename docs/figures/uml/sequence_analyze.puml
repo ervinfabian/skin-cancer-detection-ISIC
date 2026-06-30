@@ -1,0 +1,49 @@
+@startuml sequence_analyze
+' Egy elemzési kérés életciklusa (POST /analyze)
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam dpi 200
+skinparam sequence {
+  ArrowColor #1f2933
+  LifeLineBorderColor #64748b
+  ParticipantBorderColor #2563eb
+  ParticipantBackgroundColor #e0f2fe
+  ParticipantFontColor #1f2933
+  ActorBorderColor #2563eb
+}
+
+actor "Felhasználó" as U
+participant "Kliens\n(Android / Web)" as C
+participant "Backend\n(Flask / FastAPI)" as B
+participant "Gemini\n(LLM)" as G
+participant "MCP-szerver" as M
+participant "ViT modell\n(GPU)" as V
+database "Firebase\n(Auth / Firestore / Storage)" as F
+
+U -> C : kép kiválasztása / fotó készítése
+C -> B : POST /analyze\n(kép + ID token)
+B -> F : token ellenőrzése (Admin SDK)
+F --> B : uid
+B -> G : képvalidáció\n(minőség és relevancia)
+
+alt nem értékelhető kép
+  G --> B : hibakód\n(NOT_SKIN / BLURRY / TOO_FAR / ...)
+  B --> C : célzott visszajelzés
+  C --> U : útmutatás (pl. tartsa közelebb)
+else értékelhető kép (OK)
+  G --> B : OK
+  B -> F : kép feltöltése (Storage)
+  B -> M : classify_lesion (JSON-RPC 2.0)
+  M -> V : HTTP /classify
+  V --> M : címke + konfidencia
+  M --> B : osztályozás eredménye
+  B -> F : munkamenet mentése (Firestore)
+  B -> G : magyarázat kérése (ABCDE)
+  loop token-szintű válasz (SSE)
+    G --> B : szövegrészlet
+    B --> C : SSE esemény (token)
+  end
+  B --> C : [DONE]
+  C --> U : eredmény + magyarázat
+end
+@enduml

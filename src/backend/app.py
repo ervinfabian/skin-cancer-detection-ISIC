@@ -23,12 +23,6 @@ import base64
 import subprocess
 import threading
 import time  # already imported — used for MCP retry backoff
-# ── CHANGED BY CLAUDE (2026-03-30) ───────────────────────────────────────────
-# ORIGINAL: no Firebase imports — app.py was fully stateless (images discarded,
-#           no sessions saved, no persistence at all)
-# ADDED:    Firebase Admin SDK + uuid + datetime to support image uploads to
-#           Firebase Storage and session persistence in Firestore
-# ─────────────────────────────────────────────────────────────────────────────
 import uuid
 import datetime
 import firebase_admin
@@ -52,14 +46,6 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
 # ── Gemini model to use ──────────────────────────────────────────────────────
 GEMINI_MODEL = "gemini-2.5-flash"
 
-# ── CHANGED BY CLAUDE (2026-03-30) ───────────────────────────────────────────
-# ORIGINAL: no Firebase config — app.py had no persistence whatsoever
-# ADDED:    Firebase credentials path + storage bucket, read from env vars
-#           (same pattern already used in api.py)
-#           Set before running:
-#             export FIREBASE_CREDENTIALS_PATH="path/to/firebase_credentials.json"
-#             export FIREBASE_STORAGE_BUCKET="your-project-id.firebasestorage.app"
-# ─────────────────────────────────────────────────────────────────────────────
 FIREBASE_CREDENTIALS_PATH = os.environ.get("FIREBASE_CREDENTIALS_PATH", "firebase_credentials.json")
 FIREBASE_STORAGE_BUCKET   = os.environ.get("FIREBASE_STORAGE_BUCKET", "your-project-id.firebasestorage.app")
 
@@ -82,11 +68,6 @@ IMPORTANT GUIDELINES:
 MCP_SERVER_PATH = os.path.join(os.path.dirname(__file__), "mcp_server.py")
 
 # =============================================================================
-# CHANGED BY CLAUDE (2026-03-30) — FIREBASE INITIALIZATION
-# ORIGINAL: no Firebase init existed in app.py at all
-# ADDED:    init_firebase() + get_db() + get_bucket() helpers, matching the
-#           pattern already used in api.py, so both backends share the same
-#           Firebase project
 # =============================================================================
 
 def init_firebase():
@@ -115,10 +96,6 @@ def get_bucket():
     return storage.bucket()
 
 # =============================================================================
-# CHANGED BY CLAUDE (2026-03-30) — FIREBASE HELPER FUNCTIONS
-# ORIGINAL: none — images were discarded after classification, nothing was saved
-# ADDED:    three helpers for uploading images and saving/updating sessions,
-#           identical in structure to the ones in api.py
 # =============================================================================
 
 def upload_image_to_storage(image_bytes: bytes, image_id: str, uid: str, content_type: str = "image/jpeg") -> str:
@@ -322,7 +299,7 @@ def chat():
       - message (str):          The user's text message.
       - history (str):          JSON array of prior turns [{role, text}, ...].
       - image (file, optional): A skin lesion image to classify.
-      - session_id (str):       CHANGED BY CLAUDE (2026-03-30) — empty on first
+      - session_id (str): empty on first
                                 message; the server assigns one and returns it in
                                 the first SSE event so the frontend can reuse it
                                 for follow-up messages in the same session.
@@ -337,18 +314,11 @@ def chat():
     history       = json.loads(history_json)
     image_file    = request.files.get("image")
 
-    # ── CHANGED BY CLAUDE (2026-03-30) ───────────────────────────────────────
-    # ORIGINAL: no session tracking — every request was independent
-    # ADDED:    session_id received from frontend (empty = new session);
-    #           server generates one if missing so all turns link to one document
-    # ─────────────────────────────────────────────────────────────────────────
     session_id = request.form.get("session_id", "").strip() or str(uuid.uuid4())
     image_id   = str(uuid.uuid4())
     image_url  = None
 
     # ── Step 1: If image provided, upload to Firebase Storage ────────────────
-    # CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: image bytes were read and used
-    # only for MCP classification, then discarded. ADDED: upload to Firebase
     # Storage first so the image is persisted before classification begins.
     REJECTION_MESSAGES = {
         "NOT_SKIN":       ("The uploaded image doesn't appear to show a skin lesion or dermatological finding. "
@@ -428,9 +398,6 @@ def chat():
             classification_context = f"\n\n[Classification failed: {e}]\n"
 
     # ── Step 3: Save initial session to Firestore ─────────────────────────────
-    # CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: nothing was saved
-    # ADDED: persist the user message + metadata before streaming starts,
-    #        so the session exists even if streaming fails mid-way
     try:
         save_session_to_firestore(
             session_id=session_id,
@@ -460,9 +427,6 @@ def chat():
     # ── Step 5: Stream Gemini's response back to the browser via SSE ──────────
     def generate():
         """Generator that yields SSE-formatted chunks from Gemini."""
-        # CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: first event was a token
-        # ADDED: first event is a meta payload so the frontend receives the
-        #        session_id, image_url, and classification before tokens arrive
         meta = json.dumps({
             "session_id":     session_id,
             "image_url":      image_url,
@@ -491,8 +455,6 @@ def chat():
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         finally:
-            # CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: nothing saved on finish
-            # ADDED: append the completed assistant response to Firestore
             try:
                 append_message_to_firestore(session_id, "assistant", full_response)
             except Exception:

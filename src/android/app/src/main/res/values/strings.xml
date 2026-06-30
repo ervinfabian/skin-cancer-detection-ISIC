@@ -8,5 +8,5 @@
     <string name="history_title">Past Sessions</string>
     <string name="empty_history">No sessions yet.</string>
     <string name="image_ready">Image ready to send</string>
-    <string name="disclaimer">For informational purposes only — not a substitute for professional medical advice.</string>
+    <string name="disclaimer">Screening risk indication only — not a diagnosis or a substitute for professional medical advice.</string>
 </resources>

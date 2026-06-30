@@ -1,0 +1,108 @@
+% =============================================================================
+% 6. fejezet — Összefoglalás és jövőbeli munka
+% =============================================================================
+
+% =============================================================================
+\section{A dolgozat eredményeinek összegzése}
+% =============================================================================
+
+A dolgozatban egy végponttól végpontig megvalósított, AI-alapú
+bőrelváltozás-elemző rendszert (DermAI) terveztünk és valósítottunk meg, amely a
+korai bőrrákszűrést egy okostelefonon és webböngészőben egyaránt elérhető
+eszközzel támogatja. A munka két, egymást kiegészítő pillérre épült.
+
+A \textbf{kutatási rész} egy Vision Transformer modellt tanított be -- a
+transzfertanulás elvén, ImageNet-előtanítás után finomhangolva -- az ISIC 2024
+adathalmazon a bőrelváltozások jó\-indulatú/rosszindulatú osztályozására,
+megfelelő figyelmet fordítva az adathalmaz rendkívül erős
+osztály-egyensúlytalanságára (súlyozott mintavételezés, fókuszveszteség,
+kétfázisú tanítás). A modellt három viszonyítási alappal vetettük össze: egy azonos
+feltételek mellett betanított ResNet-18 konvolúciós hálóval (az architektúra
+hatásának izolálására), az EVA02 versenymodellel és egy
+zero-shot Gemini nagy nyelvi modellel. A kiértékelés a hivatalos ISIC 2024
+részleges AUC metrikán, két klinikailag értelmezhető működési ponton, valamint
+statisztikai szignifikancia-vizsgálattal (DeLong-teszt, konfidencia-intervallumok)
+és kalibrációs elemzéssel (Brier-pontszám) történt.
+
+A finomhangolt ViT-Base modell a teszthalmazon AUC $0{,}939$-et és pAUC
+$0{,}159$-et ért el, és minden mutatóban érdemben felülmúlta a ResNet-18
+konvolúciós alapot (AUC $0{,}876$, pAUC $0{,}122$) -- különösen a magas
+érzékenységű tartományban, ahol azonos érzékenység mellett lényegesen jobb
+specificitást nyújtott. A zero-shot Gemini modell jelentősen elmaradt (AUC
+$0{,}740$; a ViT-tel szembeni különbség DeLong-teszttel $p < 0{,}001$). A ViT
+egyúttal gyakorlatilag elérte az EVA02
+szintjét is (pAUC $0{,}158$), ami a saját modell versenyképességét igazolja.
+
+A \textbf{mérnöki rész} a betanított modellt egy teljes, működő alkalmazássá
+egészítette ki: natív Android kliens, webes felület, két backend (Flask, illetve
+FastAPI), a modellt kiszolgáló MCP-réteg, valamint a Gemini nagy nyelvi modellre
+épülő képvalidáció, magyarázatgenerálás és párbeszéd. A rendszer a felhasználói
+adatokat hitelesített hozzáférés mögött, felhasználónként elkülönítve tárolja
+(Firebase), a token-szintű válaszközvetítést szerver-küldött eseményekkel valósítja
+meg, és több szintű hálózati hibatűréssel alkalmazkodik a változó környezethez.
+
+% =============================================================================
+\section{Korlátok}
+% =============================================================================
+
+Az eredmények értelmezésekor több korlátot figyelembe kell venni:
+
+\begin{itemize}
+  \item \textbf{Kevés pozitív eset.} Az ISIC 2024 adathalmazban mindössze 393
+  rosszindulatú eset szerepel, a teszthalmazban 59. Ez a metrikák -- különösen
+  az érzékenység és a pAUC -- becslését érzékennyé teszi a mintavételi zajra,
+  amit a megadott konfidencia-intervallumok tükröznek.
+  \item \textbf{Alacsony pozitív prediktív érték.} Az extrém, $\sim 1{:}1000$
+  arányú osztály-egyensúlytalanság miatt a pozitív prediktív érték még jó
+  specificitás mellett is alacsony marad, ami a hamis pozitívok nagy számával
+  jár. Szűrőeszközként ez elfogadható (a cél a rosszindulatú esetek kiszűrése),
+  de a felhasználó tájékoztatásánál figyelembe veendő: a pozitív kimenet
+  kockázati jelzés, nem diagnózis.
+  \item \textbf{Kizárólag képi bemenet.} A modell csak a képet használja; az ISIC
+  2024 verseny tapasztalata szerint a klinikai metaadatok bevonása érdemben
+  javíthatja a teljesítményt.
+  \item \textbf{Adathalmaz-jellegű torzítások.} A 3D-TBP felvételek nem fedik le a
+  hétköznapi okostelefonos fényképezés teljes változatosságát, és a populációs
+  reprezentáció (például a bőrtónusok eloszlása) korlátozott lehet, ami az
+  általánosíthatóságot befolyásolja; a teszthalmazon mért teljesítmény ezért nem
+  feltétlenül egyezik a valós, otthoni okostelefonos használatban elérhetővel.
+  \item \textbf{Gyenge valószínűségi kalibráció.} A kimeneti valószínűségek
+  Brier-pontszáma elmarad az ideálistól, ami a kalibráció utólagos javítását
+  indokolja.
+  \item \textbf{Tájékoztató jelleg.} A rendszer nem klinikai diagnosztikai
+  eszköz; kimenete nem helyettesíti a szakorvosi vizsgálatot.
+\end{itemize}
+
+% =============================================================================
+\section{Jövőbeli fejlesztési irányok}
+% =============================================================================
+
+A dolgozat eredményei több irányban is folytathatók:
+
+\begin{itemize}
+  \item \textbf{Multimodális fúzió.} A képi modell és a klinikai metaadatok
+  együttes felhasználása (például gradiens-alapú döntésifa-együttessel
+  kombinálva), az ISIC 2024 győztes megoldásainak mintájára, várhatóan tovább
+  javítaná a teljesítményt.
+  \item \textbf{Kalibráció és bizonytalanságbecslés.} A kimeneti valószínűségek
+  utólagos kalibrálása (például hőmérséklet-skálázással) és a predikciós
+  bizonytalanság becslése növelné a klinikai megbízhatóságot.
+  \item \textbf{Magasabb felbontás.} A bemeneti felbontás növelése (a ViT
+  $224\times224$-éről az EVA02 $336\times336$-os szintjére) az összevetés alapján
+  további javulást hozhat, a számítási költség növekedése árán.
+  \item \textbf{Robusztusság és méltányosság.} Sokszínűbb -- különböző
+  bőrtónusokat és felvételi körülményeket lefedő -- adathalmazokon történő
+  tanítás és kiértékelés csökkentené a populációk közötti
+  teljesítménykülönbségeket.
+  \item \textbf{Magyarázhatóság.} A figyelmi térképek vagy más vizuális
+  magyarázó technikák integrálása átláthatóbbá tenné a modell döntéseit a
+  felhasználó és a szakorvos számára.
+  \item \textbf{Klinikai validáció.} A rendszer valós környezetben, prospektív
+  vizsgálatban történő értékelése elengedhetetlen a tényleges klinikai
+  hasznosság igazolásához.
+\end{itemize}
+
+Összességében a dolgozat azt mutatta meg, hogy egy modern, figyelem-alapú képi
+modell és egy nagy nyelvi modell összehangolt alkalmazásával egy hozzáférhető,
+felhasználóbarát bőrrákszűrő rendszer építhető, amely -- a fenti korlátok
+tudatában -- értékes első lépés lehet a korai felismerés támogatásában.

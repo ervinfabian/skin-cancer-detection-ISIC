@@ -93,11 +93,6 @@
       letter-spacing: 0.05em;
     }
 
-    /* ── CHANGED BY CLAUDE (2026-03-30) ──────────────────────────────────────
-       ORIGINAL: no save indicator existed
-       ADDED:    small pill in the header that briefly shows "saved" after each
-                 message is persisted to Firebase
-    ─────────────────────────────────────────────────────────────────────────── */
     #save-indicator {
       font-size: 0.65rem;
       letter-spacing: 0.06em;
@@ -373,7 +368,6 @@
     <span class="subtitle">Skin Lesion Analysis · Powered by Gemini Flash</span>
     <a href="#" id="btn-about" onclick="showAbout();return false;" style="margin-left:auto; font-size:0.72rem; color:var(--text-dim); letter-spacing:0.05em; text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-dim)'">About</a>
     <button id="btn-sign-out" onclick="signOut()" style="margin-left:16px; background:none; border:1px solid var(--border); border-radius:6px; padding:4px 12px; font-family:var(--font); font-size:0.72rem; color:var(--text-dim); cursor:pointer; letter-spacing:0.05em;" onmouseover="this.style.borderColor='var(--danger)';this.style.color='var(--danger)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">Sign out</button>
-    <!-- CHANGED BY CLAUDE (2026-03-30): added save indicator pill -->
     <span id="save-indicator">✓ saved</span>
   </header>
 
@@ -409,7 +403,7 @@
     </div>
 
     <p class="disclaimer">
-      ⚠ For informational purposes only — not a substitute for professional medical advice.
+      ⚠ Screening risk indication only — not a diagnosis or a substitute for professional medical advice.
     </p>
   </div>
 
@@ -492,9 +486,6 @@
     let history      = [];   // [{role: "user"|"assistant", text: "..."}]
     let pendingImage = null; // File | null
     let isStreaming  = false;
-    // CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: no session tracking
-    // ADDED: sessionId persists across messages so all turns in one conversation
-    //        link to the same Firestore document. Null until server assigns one.
     let sessionId    = null;
 
     // ── Welcome message ────────────────────────────────────────────────────
@@ -575,9 +566,6 @@
       if (pendingImage) {
         formData.append("image", pendingImage);
       }
-      // CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: session_id was never sent
-      // ADDED: send current sessionId so the server links follow-up messages to
-      //        the same Firestore document (empty string = server creates new one)
       formData.append("session_id", sessionId || "");
 
       clearImage();
@@ -617,7 +605,6 @@
             if (payload === "[DONE]") {
               // Remove cursor, finalize
               assistantBubble.classList.remove("cursor");
-              // CHANGED BY CLAUDE (2026-03-30): flash the "saved" indicator
               showSaveIndicator();
               break;
             }
@@ -629,9 +616,6 @@
               break;
             }
 
-            // CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: every event was a token
-            // ADDED: first event is a meta payload with session_id + image_url.
-            //        Capture session_id so follow-up messages link to same session.
             if (data.session_id && !data.token) {
               sessionId = data.session_id;
               continue; // meta event — not a token, don't render it
@@ -702,8 +686,6 @@
       chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 
-    // CHANGED BY CLAUDE (2026-03-30) — ORIGINAL: no save feedback
-    // ADDED: briefly shows "✓ saved" in the header after each completed message
     function showSaveIndicator() {
       const indicator = document.getElementById("save-indicator");
       indicator.classList.add("visible");
@@ -744,7 +726,7 @@
         </div>
         <div style="display:flex; gap:16px; padding:12px 0; border-bottom:1px solid var(--border);">
           <span style="font-size:1.1rem; color:var(--accent); min-width:28px;">02</span>
-          <p style="font-size:0.86rem; line-height:1.7; color:var(--text-dim);"><strong style="color:var(--text)">AI Classification</strong> — A Vision Transformer model trained on the ISIC 2024 dataset classifies the lesion as <em>Benign</em> or <em>Malignant</em>, with a confidence score.</p>
+          <p style="font-size:0.86rem; line-height:1.7; color:var(--text-dim);"><strong style="color:var(--text)">AI Classification</strong> — A Vision Transformer model trained on the ISIC 2024 dataset estimates whether the lesion is <em>Benign</em> or <em>Malignant</em>, with a confidence score, as a screening risk indication rather than a diagnosis.</p>
         </div>
         <div style="display:flex; gap:16px; padding:12px 0; border-bottom:1px solid var(--border);">
           <span style="font-size:1.1rem; color:var(--accent); min-width:28px;">03</span>
@@ -758,8 +740,9 @@
 
       <div style="margin-top:24px; background:rgba(224,92,110,0.07); border:1px solid var(--danger); border-radius:var(--radius); padding:14px 18px; font-size:0.82rem; color:var(--text-dim); line-height:1.7;">
         <strong style="color:var(--danger);">⚠ Important disclaimer</strong><br>
-        DermAI is an informational screening tool only — it does not replace professional
-        medical examination or diagnosis. Never make a medical decision based solely on
+        DermAI is an informational screening tool only. Its output is a risk indication
+        meant to support screening — it is not a diagnosis and does not replace
+        professional medical examination. Never make a medical decision based solely on
         this application's output. If you have any concerns about a skin lesion,
         consult a dermatologist.
       </div>

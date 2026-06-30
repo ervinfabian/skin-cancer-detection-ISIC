@@ -186,7 +186,7 @@ R.id.action_sign_out -> {
             if (classification != null) {
                 binding.classificationBadge.visibility = View.VISIBLE
                 val pct = (classification.confidence * 100).toInt()
-                binding.tvClassification.text = "${classification.label} · $pct%"
+                binding.tvClassification.text = "Screening · ${classification.label} · $pct%"
                 val color = if (classification.label.lowercase().contains("malign"))
                     getColor(R.color.malignant) else getColor(R.color.benign)
                 binding.classificationBadge.setBackgroundColor(color)

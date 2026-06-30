@@ -1,0 +1,44 @@
+@startuml usecase
+' Használati eset diagram
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam dpi 200
+skinparam packageStyle rectangle
+skinparam nodesep 18
+skinparam ranksep 60
+skinparam usecase {
+  BorderColor #2563eb
+  BackgroundColor #e0f2fe
+  FontColor #1f2933
+}
+skinparam actorBorderColor #2563eb
+left to right direction
+
+actor "Felhasználó" as U
+
+rectangle "Bőrelváltozás-szűrő rendszer" {
+  usecase "Bejelentkezés\n(Google-fiók)" as UC1
+  usecase "Kép feltöltése /\nfotó készítése" as UC2
+  usecase "Elváltozás elemzése" as UC3
+  usecase "Kérdés feltevése\n(párbeszéd)" as UC4
+  usecase "Előzmények\nmegtekintése" as UC5
+  usecase "Kijelentkezés" as UC6
+
+  package "Az elemzés lépései" {
+    usecase "Képvalidáció" as UC3a
+    usecase "Rosszindulatúság-\nosztályozás" as UC3b
+    usecase "Természetes nyelvű\nmagyarázat" as UC3c
+  }
+}
+
+U --> UC1
+U --> UC2
+U --> UC3
+U --> UC4
+U --> UC5
+U --> UC6
+
+UC3 ..> UC3a : <<include>>
+UC3 ..> UC3b : <<include>>
+UC3 ..> UC3c : <<include>>
+@enduml

@@ -1,0 +1,97 @@
+% =============================================================================
+% 1. fejezet — Bevezető
+% =============================================================================
+
+\section{Motiváció és problémafelvetés}
+
+A bőrrák napjaink egyik legelterjedtebb daganatos megbetegedése, és bár a
+melanoma a bőrdaganatos eseteknek csak kisebb hányadát teszi ki, agresszív
+viselkedése és rossz prognózisa miatt a bőrrák okozta halálozás túlnyomó részéért felel.
+A betegség kimenetele döntően a felismerés időzítésén múlik: a még lokalizált stádiumban
+diagnosztizált melanoma jó eséllyel gyógyítható, késői, áttétes stádiumban
+azonban a túlélési esély drasztikusan romlik. A korai felismerés tehát nem csupán
+orvosi, hanem népegészségügyi szempontból is kritikus jelentőségű; a téma
+részletes epidemiológiai hátterét a \ref{chpt:literature}.~fejezet tárgyalja.
+
+A korai felismerés legnagyobb gyakorlati akadálya a hozzáférés. A hagyományos
+diagnosztikai folyamat -- dermatológus által végzett vizuális vizsgálat és
+dermatoszkópos értékelés -- magas szintű szakmai tudást és speciális eszközöket
+igényel. A világ számos részén, különösen vidéki térségekben és alacsonyabb
+jövedelmű országokban, a bőrgyógyászati szakellátáshoz való hozzáférés
+korlátozott, ami késedelmes diagnózishoz és rosszabb kimenetelhez vezet; de még
+fejlett egészségügyi rendszerekben is jelentős várakozási idővel kell számolni a
+szakorvosi vizsgálatig.
+
+A mesterséges intelligencia, azon belül a mély tanulás megjelenése új
+lehetőségeket nyitott a bőrelváltozások automatikus osztályozásában. Az úttörő
+munkák kimutatták, hogy a megfelelően betanított neurális hálók a
+bőrrák-osztályozásban elérhetik a tapasztalt dermatológusok teljesítményét
+\cite{esteva2017dermatologist}, és az architektúrák fejlődésével ez a képesség tovább erősödött.
+Az okostelefonok elterjedése és fejlődő kamerarendszerei ezt a képességet a beteg
+kezébe adhatják: egy ilyen rendszer a felhasználó által készített fotó alapján
+jelezheti, ha egy elváltozás szakorvosi vizsgálatot indokol, csökkentve a
+késői diagnózisok számát.
+
+\section{A dolgozat célja}
+
+Jelen dolgozat egy bőrelváltozás-elemző
+rendszer tervezését és implementációját mutatja be, amely transzfertanulással (transfer learning) 
+finomhangolt Vision Transformer (ViT)
+\cite{dosovitskiy2021vit} modellre épül -- a modellt az ISIC 2024
+versenyadathalmazon \cite{isic2024} tanítottuk bőrelváltozás-osztályozásra. A
+dolgozat két, egymást kiegészítő pillérre tagolódik: egy \emph{kutatási} részre,
+amely a modell fejlesztését és tudományos kiértékelését tárgyalja, és egy
+\emph{mérnöki} részre, amely a betanított modellt egy teljes, használható
+alkalmazássá egészíti ki.
+
+A rendszer fő célkitűzései a következők:
+
+\begin{itemize}
+    \item Egy bőrelváltozás-osztályozó Vision Transformer modell betanítása az
+    ISIC 2024 adathalmazon, a modell validációja, statisztikailag megalapozott
+    kiértékelése és viszonyítási alapokhoz mérése.
+    \item Egy Android mobilalkalmazás fejlesztése, amely lehetővé teszi a
+    felhasználó számára, hogy fényképet készítsen vagy töltsön fel egy
+    bőrelváltozásról, és azonnali, AI-alapú elemzést kapjon.
+    \item Egy webalkalmazás fejlesztése, amely lehetővé teszi a
+    felhasználó számára, hogy fényképet készítsen vagy töltsön fel egy
+    bőrelváltozásról, és azonnali, AI-alapú elemzést kapjon.
+    \item A feltöltött kép minőségének és relevanciájának automatikus
+    ellenőrzése egy nagy nyelvi modell (Gemini) segítségével, kiszűrve az
+    értékelhetetlen vagy nem megfelelő felvételeket.
+    \item A bőrelváltozás osztályozása \textit{benignus/jóindulatú} vagy \textit{malignus/rosszindulatú}
+    kategóriába a ViT-modellel, konfidencia-értékkel kiegészítve.
+    \item Természetes nyelvű magyarázat és orvosi szempontú visszajelzés
+    generálása a klasszifikációs eredmény alapján, az ABCDE-szabály\footnote{Aszimmetria, határvonal, szín, átmérő, evolúció -- a melanoma
+    gyanújelei.} figyelembevételével.
+    \item A felhasználói interakciók és a feltöltött képek biztonságos, a
+    bejelentkező felhasználóhoz kötött tárolása felhőalapú infrastruktúrán.
+\end{itemize}
+
+Fontos hangsúlyozni, hogy a rendszer nem helyettesíti a szakorvosi diagnózist:
+kizárólag tájékoztató jellegű szűrőeszközként funkcionál, amely segíti a
+felhasználót abban, hogy időben döntsön a dermatológiai konzultáció
+szükségességéről.
+
+\section{A dolgozat felépítése}
+
+A dolgozat hat fejezetre tagolódik. A jelen \textbf{Bevezető} után a
+\textbf{Szakirodalmi áttekintés} (\ref{chpt:literature}.~fejezet) a
+bőrelváltozások gépi tanulással történő osztályozásának előzményeit tekinti át --
+a klinikai diagnosztikai gyakorlattól a klasszikus gépi tanuláson és a
+konvolúciós hálókon át a Vision Transformer és a multimodális nagy nyelvi
+modellek megjelenéséig --, valamint ismerteti az ISIC adathalmazok fejlődését.
+Az \textbf{Elméleti háttér} (\ref{chpt:theory}.~fejezet) a rendszer mögötti
+kulcstechnológiák elméletét építi fel: a mesterséges neurontól és a hálózatok
+tanításától a konvolúciós hálókon, a figyelmi mechanizmuson és a Vision
+Transformeren át az osztály-egyensúlytalanság kezeléséig, a kiértékelési
+metrikákig és a kommunikációs technológiákig. A \textbf{modell fejlesztése és
+kiértékelése} (\ref{chpt:research}.~fejezet) az adathalmaz előkészítését, a ViT modell
+betanítását, a viszonyítási alapokat (ResNet-18, EVA02, Gemini), valamint a
+kvantitatív eredményeket és a statisztikai elemzést tárgyalja. A \textbf{rendszer
+tervezése és megvalósítása} (\ref{chpt:engineering}.~fejezet) az osztályozó modellre épülő rendszer 
+megvalósítását mutatja be: a követelményeket, a rendszerarchitektúrát, a
+modellkiszolgálást, a backendet, a mobil- és webalkalmazást, valamint a hitelesítést
+és a felhőalapú adattárolást.
+Végül az \textbf{Összefoglalás és jövőbeli munka} (\ref{chpt:summary}.~fejezet) 
+a következtetéseket és a lehetséges továbbfejlesztési irányokat foglalja össze.

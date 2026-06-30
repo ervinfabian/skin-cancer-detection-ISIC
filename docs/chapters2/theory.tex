@@ -1,0 +1,498 @@
+% =============================================================================
+% 3. fejezet — Elméleti háttér
+% =============================================================================
+
+Ez a fejezet a dolgozatban felhasznált kulcstechnológiák elméleti hátterét
+építi fel, az alapoktól az alkalmazott architektúráig.
+% Először a mesterséges neuron és a többrétegű perceptron fogalmát, majd a
+% neurális hálók tanításának mechanizmusát ismertetjük; ezt követi a konvolúciós
+% hálók, a figyelmi mechanizmus és a Vision Transformer tárgyalása. A fejezet
+% második fele a dolgozat módszertanához közvetlenül kapcsolódó témákat -- a
+% transzfertanulást, az osztály-egyensúlytalanság kezelését, a kiértékelési
+% metrikákat, a statisztikai elemzést és a kommunikációs technológiákat --
+% mutatja be. A cél nem a terület teljes körű tankönyvi feldolgozása, hanem a
+% dolgozat megértéséhez szükséges fogalmak tömör, mégis önállóan érthető
+% összefoglalása.
+
+% =============================================================================
+\section{A mesterséges neuron és a többrétegű perceptron}
+% =============================================================================
+
+A mesterséges neurális hálózatok koncepciója a biológiai idegrendszer működéséből
+merít ihletet, annak elveit igyekszik leképezni és továbbgondolni.
+Éppen ezért érdemes először áttekinteni a biológiai neurális hálózat alapjait,
+mielőtt a mesterséges megfelelőjére térnénk.
+Az emberi idegrendszer alapegységei az idegsejtek, amelyek szerkezetileg három
+jól elkülöníthető részből állnak. A dendritek a sejttestből kiágazó nyúlványok,
+amelyek elsődleges feladata a külső jelek és ingerek befogadása. 
+Maga a sejttest látja el a beérkező információk integrálásának és feldolgozásának
+szerepét. Az axon — amely a sejttestet a szinaptikus végződésekkel köti össze — 
+kulcsfontosságú az idegsejtek közötti kommunikációban, mivel ezen keresztül
+továbbítódnak az elektromos jelek. Az a mechanizmus, amelynek során egy neuron
+axonja egy másik neuron dendritjével kerül kapcsolatba, és a felszabaduló
+neurotranszmitterek révén megtörténik a jeltovábbítás a két sejt között, szinapszis néven ismert.
+
+A mély tanulás alapegysége a mesterséges neuron, amely a biológiai idegsejt
+erősen leegyszerűsített matematikai modellje \cite{goodfellow2016deep}. A neuron
+a bemeneti jelek ($x_1, \dots, x_n$) súlyozott összegét képezi, hozzáad egy
+eltolási (bias) tagot, majd az eredményt egy nemlineáris \textit{aktivációs
+függvényen} ($\varphi$) vezeti át:
+
+\begin{equation}
+  y = \varphi\!\left(\sum_{i=1}^{n} w_i x_i + b\right),
+  \label{eq:neuron}
+\end{equation}
+
+ahol $w_i$ a bemenetekhez rendelt súlyok, $b$ az eltolás. A súlyok és az eltolás
+a tanulás során hangolódó paraméterek. Egyetlen neuron csak lineárisan
+szétválasztható feladatokat képes megoldani; a kifejezőerőt a neuronok
+\textit{rétegekbe} szervezése adja.
+
+A \textit{többrétegű perceptron} (multilayer perceptron, MLP) neuronok egymást
+követő rétegeiből épül fel: egy bemeneti rétegből, egy vagy több rejtett
+rétegből és egy kimeneti rétegből, ahol az egyes rétegek neuronjai a következő
+réteg minden neuronjához kapcsolódnak (\ref{fig:neuron-mlp}.~ábra). Egy elegendően
+széles, nemlineáris aktivációval rendelkező rejtett réteggel az MLP tetszőleges
+folytonos függvényt képes tetszőleges pontossággal közelíteni -- ez az
+\textit{univerzális approximáció} tulajdonsága --, a gyakorlatban azonban a
+mélység (a rétegek száma) teszi lehetővé a bonyolult, hierarchikus
+reprezentációk hatékony tanulását \cite{goodfellow2016deep}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{images/diagrams/neuron_mlp.png}
+  \caption{Balra: a mesterséges neuron, amely a bemenetek súlyozott összegét egy
+    aktivációs függvényen vezeti át. Jobbra: a többrétegű perceptron, amelyben a
+    teljesen összekötött rétegek a bemenetből a kimenet felé továbbítják a jelet.}
+  \label{fig:neuron-mlp}
+\end{figure}
+
+% =============================================================================
+\section{Aktivációs függvények}
+% =============================================================================
+
+Az aktivációs függvény viszi be a nemlinearitást a hálóba; e nélkül a rétegek
+egymásutánja egyetlen lineáris transzformációvá esne össze, és a háló
+kifejezőereje nem haladná meg egyetlen réteg kifejezőerejét. A legelterjedtebb választások a
+következők \cite{goodfellow2016deep}:
+
+\begin{itemize}
+  \item \textbf{Szigmoid:} $\sigma(z) = 1/(1 + e^{-z})$, amely a bemenetet a
+  $(0;1)$ intervallumra képezi; bináris osztályozás kimeneti rétegében
+  valószínűségként értelmezhető, rejtett rétegekben azonban a telítődő
+  tartományokban eltűnő gradienst okozhat.
+  \item \textbf{Tangens hiperbolikus:} $\tanh(z)$, amely a $(-1;1)$ intervallumra
+  képez, és nulla középpontú kimenetével gyakran kedvezőbb a szigmoidnál.
+  \item \textbf{Rektifikált lineáris egység (ReLU):} $\mathrm{ReLU}(z) = \max(0,
+  z)$, amely egyszerűsége és a pozitív tartományban nem telítődő, gradiens-barát
+  viselkedése miatt a mély hálók alapértelmezett választásává vált. Számos
+  változata létezik, például a negatív tartományban kis meredekséget engedő
+  \textit{Leaky ReLU}, illetve a sima \textit{GELU}, amelyet a Transformer-alapú
+  modellek -- köztük a dolgozat ViT modellje -- is alkalmaznak.
+\end{itemize}
+
+A többosztályos kimeneti rétegben a \textbf{softmax} függvény használatos, amely
+a kimeneti pontszámokat (logitokat) egy osztályok feletti valószínűségi
+eloszlássá normalizálja:
+
+\begin{equation}
+  \mathrm{softmax}(z)_k = \frac{e^{z_k}}{\sum_{j} e^{z_j}}.
+  \label{eq:softmax}
+\end{equation}
+
+% =============================================================================
+\section{A neurális hálók tanítása}
+% =============================================================================
+
+A háló tanítása a paraméterek (súlyok és eltolások) olyan beállítását jelenti,
+amely minimalizálja a modell előrejelzései és a valós címkék közötti eltérést. Ezt
+az eltérést egy \textit{veszteségfüggvény} (loss function) számszerűsíti, a
+minimalizálást pedig gradiens-alapú optimalizálás végzi.
+
+\subsection{Veszteségfüggvények}
+
+A feladat jellegétől függően különböző veszteségfüggvényeket alkalmazunk.
+Regressziónál az átlagos négyzetes eltérés (mean squared error) a tipikus
+választás. Osztályozásnál a \textit{keresztentrópia} (cross-entropy) használatos,
+amely a becsült és a valós valószínűségi eloszlás közötti eltérést méri; bináris
+esetben \cite{goodfellow2016deep}:
+
+\begin{equation}
+  \mathcal{L}_{\mathrm{BCE}} = -\frac{1}{N}\sum_{i=1}^{N}
+  \big[ y_i \log p_i + (1 - y_i)\log(1 - p_i) \big],
+  \label{eq:bce}
+\end{equation}
+
+ahol $y_i \in \{0,1\}$ a valós címke, $p_i$ a modell által a pozitív osztályra
+becsült valószínűség. Erősen kiegyensúlyozatlan feladatban e veszteség
+módosítására van szükség; ezt a \ref{sec:imbalance}.~szakasz tárgyalja.
+
+\subsection{Gradiens-alapú tanulás és hiba-visszaterjesztés}
+
+A veszteség minimalizálása \textit{gradiensereszkedéssel} (gradient descent)
+történik: a paramétereket a veszteségfüggvény gradiensével ellentétes irányban,
+kis lépésekben mozgatjuk, hiszen a gradiens a legmeredekebb növekedés irányába
+mutat. Egy $\theta$ paraméter frissítése:
+
+\begin{equation}
+  \theta \leftarrow \theta - \eta \, \frac{\partial \mathcal{L}}{\partial \theta},
+  \label{eq:gd}
+\end{equation}
+
+ahol $\eta$ a \textit{tanulási ráta} (learning rate), amely a lépés nagyságát
+szabályozza. A többrétegű hálók esetén a gradienseket a \textit{hiba-visszaterjesztés}
+(backpropagation) algoritmusa számítja ki, amely a deriválás láncszabályát
+alkalmazva a kimeneti hibát rétegről rétegre, visszafelé terjeszti, és így
+minden paraméterre hatékonyan meghatározza a gradienst \cite{goodfellow2016deep}.
+
+\subsection{Optimalizálók: az SGD-től az AdamW-ig}
+
+A teljes adathalmaz feletti gradiens kiszámítása nagy adathalmazokon költséges,
+ezért a gyakorlatban a \textit{sztochasztikus gradiensereszkedést} (stochastic
+gradient descent, SGD) alkalmazzák: a gradienst a tanítóadat kisebb,
+véletlenszerű részhalmazain (\textit{batch}-ein) becsülik. Az alapváltozatot
+számos technika javítja, például a \textit{momentum}, amely a korábbi lépések
+irányát is figyelembe veszi, gyorsítva a konvergenciát.
+
+A modern mély tanulás egyik legelterjedtebb optimalizálója az \textbf{Adam},
+amely a gradiensek első és második momentumának mozgóátlagát tartja karban, és
+ezek alapján paraméterenként adaptálja a tanulási rátát \cite{kingma2015adam}. Az
+Adam egy továbbfejlesztett változata az \textbf{AdamW}, amely a súlycsökkentést
+(weight decay) -- egy, a túltanulást mérséklő regularizációs tagot -- a gradiens
+frissítésétől szétválasztva, helyesebben kezeli, és így jobb általánosítást ér el
+\cite{loshchilov2019adamw}. A dolgozat valamennyi modelljét AdamW
+optimalizálóval tanítottuk.
+
+A tanulási ráta időbeli alakítása (\textit{ütemezés}, scheduling) szintén
+befolyásolja a konvergenciát. Bevett gyakorlat a kezdeti néhány epochban
+alkalmazott \textit{bemelegítés} (warmup), amely fokozatosan emeli a tanulási
+rátát, megelőzve a kezdeti nagy, destabilizáló lépéseket, majd egy
+\textit{koszinusz} ütemezés, amely a ráta fokozatos csökkentésével finomhangolja
+a modellt.
+
+\subsection{Regularizáció és a túltanulás megelőzése}
+
+A nagy kapacitású hálók hajlamosak a \textit{túltanulásra} (overfitting): a
+tanítóadatot kívülről megtanulják, de új adatokra rosszul általánosítanak. Ennek
+megelőzésére több technika áll rendelkezésre:
+
+\begin{itemize}
+  \item \textbf{Dropout:} a tanítás során a neuronok egy véletlenszerűen
+  kiválasztott hányadát ideiglenesen kikapcsolja, így a háló nem támaszkodhat
+  egyetlen jellemzőre sem, ami robusztusabb reprezentációkat eredményez
+  \cite{srivastava2014dropout}.
+  \item \textbf{Súlycsökkentés (weight decay):} a nagy súlyokat bünteti, a
+  modellt egyszerűbb megoldások felé terelve.
+  \item \textbf{Adatkiterjesztés (augmentation):} a tanítóképek véletlenszerű
+  transzformációival (tükrözés, forgatás, szín-jitter) mesterségesen növeli az
+  adathalmaz változatosságát; ezt a dolgozat módszertani része részletezi.
+  \item \textbf{Korai leállítás (early stopping):} a tanítást akkor állítja le,
+  amikor a validációs teljesítmény már nem javul, megelőzve a felesleges
+  túltanulást.
+\end{itemize}
+
+A tanítás stabilitását és gyorsaságát a \textbf{batch-normalizálás} is segíti,
+amely a rétegek aktivációit batch-enként normalizálja, csökkentve a belső
+eloszlás-eltolódást és lehetővé téve a nagyobb tanulási ráták használatát
+\cite{ioffe2015batchnorm}.
+
+% =============================================================================
+\section{Konvolúciós neurális hálók}
+% =============================================================================
+
+A teljesen összekötött MLP nem skálázódik jól képekre: egy közepes méretű kép
+több százezer képpontból áll, így a teljes összeköttetés kezelhetetlenül sok
+paramétert eredményezne, és figyelmen kívül hagyná a képek térbeli szerkezetét. A
+\textit{konvolúciós neurális hálók} (CNN-ek) erre adnak választ a súlymegosztás
+és a lokális kapcsolatok elvével \cite{goodfellow2016deep}.
+
+\subsection{A konvolúciós réteg}
+
+A konvolúciós réteg kis méretű, tanulható szűrőket (\textit{kernel}eket) csúsztat
+végig a képen, és minden pozícióban a szűrő alatti képrészlet és a szűrő közötti
+súlyozott összeget számítja ki. Egy-egy szűrő a teljes képen ugyanazokat a
+súlyokat használja (súlymegosztás), így egy adott lokális mintázatot (élt,
+sarkot, textúrát) a kép bármely pontján fel tud ismerni, miközben a paraméterek
+száma alacsony marad. Egy réteg több szűrője különböző jellemzőkre érzékeny
+\textit{jellemzőtérképeket} (feature maps) állít elő. A rétegek egymásra
+építésével a háló egyre összetettebb, hierarchikus jellemzőket tanul: az alsóbb
+rétegek élekre és textúrákra, a felsőbbek alakzatokra és objektumrészekre
+reagálnak.
+
+\subsection{Az összevonó réteg}
+
+A konvolúciós rétegeket gyakran \textit{összevonó} (pooling) rétegek követik,
+amelyek a jellemzőtérképek térbeli felbontását csökkentik: egy kis ablakon belül
+a maximumot (max pooling) vagy az átlagot (average pooling) veszik. Ez egyrészt
+csökkenti a számítási költséget és a paraméterszámot, másrészt bizonyos fokú
+eltolás-invarianciát biztosít. A jellemzőkinyerés (konvolúció + összevonás
+ismételt alkalmazása) után egy vagy több teljesen összekötött réteg végzi az
+osztályozást (\ref{fig:cnn}.~ábra).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{images/diagrams/cnn_schematic.png}
+  \caption{A konvolúciós neurális háló sematikus felépítése: a konvolúciós és
+    összevonó rétegek ismételt alkalmazásával egyre absztraktabb
+    jellemzőtérképeket nyer ki a képből, majd egy teljesen összekötött réteg végzi
+    az osztályozást.}
+  \label{fig:cnn}
+\end{figure}
+
+\subsection{Reziduális kapcsolatok és a ResNet}
+
+A hálók mélyítése elvileg növeli a kifejezőerőt, a nagyon mély hálók tanítása
+azonban az eltűnő gradiens jelensége miatt instabillá válhat. A ResNet
+architektúra \cite{he2016resnet} ezt \textit{reziduális kapcsolatokkal}
+(residual/skip connections) oldja meg: az egyes rétegblokkok nem közvetlenül a
+kívánt leképezést, hanem ahhoz képest egy maradékot (reziduumot) tanulnak, és a
+blokk bemenetét egy rövidre záró kapcsolat hozzáadja a kimenethez. Ez stabilizálja
+a gradiensek áramlását, és lehetővé teszi a több tucat vagy száz réteg mélységű
+hálók megbízható tanítását. A dolgozatban a ResNet-18 -- egy 18 réteg mélységű,
+mintegy 11~millió paraméteres reziduális háló -- szolgál konvolúciós viszonyítási
+alapként.
+
+% =============================================================================
+\section{A figyelmi mechanizmus és a Transformer}
+% =============================================================================
+
+A Transformer-architektúra alapja az úgynevezett \textit{skálázott pontszorzatos
+figyelem} (scaled dot-product attention), amely a bemenet elemei közötti
+összefüggéseket azok távolságától függetlenül modellezi \cite{vaswani2017attention}.
+A mechanizmus minden bemeneti elemhez három vektort rendel: egy lekérdezést
+($Q$, query), egy kulcsot ($K$, key) és egy értéket ($V$, value). A kimenet az
+értékvektorok súlyozott összege, ahol a súlyokat a lekérdezések és kulcsok
+hasonlósága határozza meg:
+
+\begin{equation}
+  \mathrm{Attention}(Q, K, V) = \mathrm{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d_k}}\right) V,
+  \label{eq:attention}
+\end{equation}
+
+ahol $d_k$ a kulcsvektorok dimenziója; a $\sqrt{d_k}$ skálázó tényező a
+pontszorzatok nagyságát stabilizálja, megakadályozva a softmax telítődését. A
+gyakorlatban a modell több, párhuzamos figyelmi „fejet'' (multi-head attention)
+alkalmaz, amelyek különböző reprezentációs alterekben tanulnak összefüggéseket,
+így gazdagabb leírást képesek megragadni \cite{vaswani2017attention}.
+
+A Transformer-kódoló e figyelmi rétegeket helyzetenkénti, teljesen összekötött
+előrecsatolt rétegekkel (feed-forward), maradék (reziduális) kapcsolatokkal és
+rétegnormalizálással kombinálja. Mivel a figyelem önmagában érzéketlen az elemek
+sorrendjére, a bemenethez \textit{helyzetkódolást} (positional encoding) adnak,
+amely a sorrendi információt visszacsempészi a modellbe.
+
+% =============================================================================
+\section{A Vision Transformer architektúrája}
+% =============================================================================
+
+A Vision Transformer (ViT) a természetesnyelv-feldolgozásban bevált
+Transformer-kódolót ülteti át a képosztályozásra \cite{dosovitskiy2021vit}. A
+feldolgozás lépései a következők:
+
+\begin{enumerate}
+  \item \textbf{Foltokra bontás és beágyazás.} A $H \times W$ méretű bemeneti
+  képet rögzített méretű, nem átfedő foltokra (jellemzően $16 \times 16$ pixel)
+  bontja. Minden foltot vektorrá lapít, majd egy lineáris vetítés egy rögzített
+  dimenziójú beágyazási térbe képezi -- ezek a „képtokenek'', a nyelvi modellek
+  szótokenjeinek analógiái.
+  \item \textbf{Osztályozó token és helyzetkódolás.} A foltbeágyazások elé egy
+  tanulható osztályozó tokent (\texttt{[CLS]}) fűz, amely a teljes kép összegzett
+  reprezentációját hivatott hordozni. A sorrendi (térbeli) információt tanulható
+  helyzetkódolás biztosítja.
+  \item \textbf{Transformer-kódoló.} A tokensorozatot több, egymásra épülő
+  Transformer-kódoló réteg dolgozza fel; a többfejű önfigyelem révén minden folt
+  közvetlen kapcsolatba kerülhet az összes többivel, így a modell a kép globális
+  összefüggéseit is megragadja.
+  \item \textbf{Osztályozó fej.} A végső réteg \texttt{[CLS]} tokenjének
+  reprezentációjára egy osztályozó fej (jellemzően egy- vagy kétrétegű
+  perceptron) épül, amely az osztályok feletti döntést szolgáltatja.
+\end{enumerate}
+
+A konvolúciós hálókkal szemben a ViT nem rendelkezik beépített képi induktív
+torzítással (lokalitás, eltolás-invariancia), ezért nagyobb adatmennyiséget vagy
+erős előtanítást igényel; cserébe a globális összefüggéseket rugalmasabban
+modellezi, és nagy adathalmazokon a CNN-ekkel versenyképes vagy azokat meghaladó
+teljesítményt ér el \cite{dosovitskiy2021vit}. A dolgozat fő modellje egy
+ImageNet-en előtanított \texttt{vit\_base\_patch16\_224} architektúra, amelynek
+sematikus felépítését a \ref{fig:vit-arch}.~ábra mutatja.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{images/diagrams/vit_architecture.png}
+  \caption{A Vision Transformer (ViT) sematikus felépítése: a kép foltokra
+    bontása, lineáris beágyazás és helyzetkódolás, a \texttt{[CLS]} tokennel
+    kiegészített tokenszekvencia feldolgozása a Transformer-kódoló rétegeiben,
+    végül a \texttt{[CLS]} reprezentációra épülő osztályozó fej, amely a
+    jó\-indulatú/rosszindulatú döntést adja.}
+  \label{fig:vit-arch}
+\end{figure}
+
+% =============================================================================
+\section{Transzfertanulás és finomhangolás}
+% =============================================================================
+
+Az orvosi képadatok jellemzően korlátozott mennyiségben állnak rendelkezésre,
+ami megnehezíti a nagy kapacitású modellek -- különösen a ViT -- nulláról történő
+betanítását. A \textit{transzfertanulás} (transfer learning) erre kínál
+megoldást: a modellt először egy nagy, általános képadatbázison (jellemzően az
+ImageNet adathalmazon \cite{russakovsky2015imagenet}) tanítják be, ahol általános
+vizuális reprezentációkat -- éleket, textúrákat, alakzatokat -- sajátít el. Az
+így előtanított modellt ezután a célfeladat kisebb adathalmazán
+\textit{finomhangolják} (fine-tuning). Raghu és munkatársai részletesen
+elemezték a transzfertanulás szerepét az orvosi képfeldolgozásban, és rámutattak,
+hogy az előtanított reprezentációk elsősorban a konvergencia gyorsításában és a
+kis adathalmazokon való stabil tanulásban segítenek \cite{raghu2019transfusion}.
+
+A finomhangolás során bevett gyakorlat a \textit{differenciált tanulási ráta}
+alkalmazása: az előtanított törzshálót (backbone) kis tanulási rátával frissítik,
+hogy a megtanult reprezentációk ne sérüljenek, míg az újonnan inicializált
+osztályozó fejet nagyobb rátával tanítják, mivel azt a feladatra nulláról kell
+megtanulni. A tanulás stabilitását -- a már említett -- bemelegítés is segíti: a kezdeti
+néhány epochban fokozatosan emeli a tanulási rátát. Erre azért van szükség, mert
+a tanítás elején a még betanítatlan osztályozó fej nagy hibát, és ezáltal nagy
+gradienseket termel; magas tanulási ráta mellett ezek nagy súlymódosító
+lépéseket okoznának, amelyek elronthatnák az előtanított törzsháló gondosan
+kialakult reprezentációit.
+
+% =============================================================================
+\section{Az osztály-egyensúlytalanság kezelése}
+\label{sec:imbalance}
+% =============================================================================
+
+Az orvosi szűrési feladatok jellemzően erősen kiegyensúlyozatlanok: a pozitív
+(beteg) esetek a teljes adathalmaznak csupán töredékét teszik ki. Ilyenkor a
+hagyományos keresztentrópia-veszteséget a sok, könnyen osztályozható negatív
+példa uralja, és a modell hajlamos a többségi osztály felé torzítani. A
+szakirodalom több, egymást kiegészítő technikát kínál e probléma kezelésére,
+amelyeket a dolgozat kombináltan alkalmaz.
+
+\paragraph{Súlyozott mintavételezés.} Az egyik megközelítés a tanító batch-ek
+osztályeloszlásának kiegyensúlyozása: minden mintát az osztálya gyakoriságával
+fordítottan arányos súllyal választunk, így a ritka pozitív esetek a tanítás
+során felülreprezentálttá válnak.
+
+\paragraph{Fókuszveszteség (focal loss).} A Lin és munkatársai által bevezetett
+fókuszveszteség a keresztentrópiát úgy alakítja át, hogy a jól osztályozott
+példák hozzájárulását lecsökkenti, és a tanulást a nehéz, félreosztályozott
+esetekre összpontosítja \cite{lin2017focal}:
+
+\begin{equation}
+  \mathrm{FL}(p_t) = -\,\alpha_t \,(1 - p_t)^{\gamma}\, \log(p_t),
+  \label{eq:focal}
+\end{equation}
+
+ahol $p_t$ a helyes osztályhoz rendelt becsült valószínűség, $\gamma \ge 0$ a
+fókuszáló paraméter (amely a könnyű példák súlyát csökkenti), $\alpha_t$ pedig
+egy osztálysúly, amely a pozitív és negatív esetek közötti egyensúlyt
+finomhangolja. A $\gamma = 0$ választás visszaadja a súlyozott
+keresztentrópiát.
+
+\paragraph{Kétfázisú tanítás.} A kiegyensúlyozott mintavételezés mellett betanított
+modell kimeneti valószínűségei eltérhetnek a valós, erősen kiegyensúlyozatlan
+előfordulási aránytól. Ezt egy második, kalibráló fázis korrigálhatja, amelyben
+a modellt a valós eloszlású adaton, kisebb tanulási rátával tanítjuk tovább, így
+a kimeneti valószínűségek a tényleges priorhoz igazodnak (\ref{fig:two-phase}.~ábra).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{images/diagrams/two_phase_training.png}
+  \caption{A kétfázisú tanítási stratégia: az első, kiegyensúlyozott fázis a
+    diszkriminatív jellemzők megtanulását célozza, a második, kalibráló fázis
+    pedig a kimeneti valószínűségeket a valós előfordulási arányhoz igazítja.}
+  \label{fig:two-phase}
+\end{figure}
+
+% =============================================================================
+\section{Kiértékelési metrikák}
+% =============================================================================
+
+Erősen kiegyensúlyozatlan feladatban a nyers pontosság (accuracy) félrevezető,
+hiszen a többségi osztály triviális megjósolásával is magas érték érhető el.
+Ezért orvosi szűrésnél a tévesztési mátrixból (confusion matrix) származtatott,
+osztályérzékeny metrikákat alkalmazunk. Jelölje $TP$, $TN$, $FP$ és $FN$ rendre a
+valódi pozitív, valódi negatív, hamis pozitív és hamis negatív esetek számát.
+
+\begin{align}
+  \text{Érzékenység (sensitivity)} &= \frac{TP}{TP + FN}, &
+  \text{Specificitás (specificity)} &= \frac{TN}{TN + FP}, \label{eq:sens-spec}\\
+  \text{PPV} &= \frac{TP}{TP + FP}, &
+  \text{NPV} &= \frac{TN}{TN + FN}. \label{eq:ppv-npv}
+\end{align}
+
+Az \textbf{érzékenység} azt méri, hogy a modell a valóban rosszindulatú eseteknek
+mekkora hányadát ismeri fel -- szűrőeszköznél ez a legkritikusabb mutató, mivel a
+fel nem ismert rák (hamis negatív) a legsúlyosabb kimenetel. A \textbf{negatív
+prediktív érték} (NPV) azt fejezi ki, hogy a „jóindulatú'' besorolás mennyire
+megbízható.
+
+\paragraph{ROC-görbe és AUC.} A bináris osztályozók döntési küszöbtől független
+értékelésére a \textit{működési jelleggörbét} (Receiver Operating Characteristic,
+ROC) használjuk, amely a valódi pozitív arányt (érzékenység) a hamis pozitív
+arány ($FPR = FP/(FP+TN)$) függvényében ábrázolja a küszöb változtatásával. A
+görbe alatti terület (Area Under the Curve, AUC) egyetlen számba sűríti a
+rangsorolási képességet: értéke 0,5 (véletlen találgatás) és 1,0 (tökéletes
+elkülönítés) között mozog.
+
+\paragraph{Részleges AUC (pAUC).} Erős egyensúlytalanságnál és klinikai
+kontextusban gyakran csak a görbe egy meghatározott szakasza érdekes. Az ISIC
+2024 verseny elsődleges metrikája a 80\%-os érzékenység feletti tartományra
+korlátozott részleges AUC (partial AUC), amely kifejezetten a klinikailag
+elvárt, magas érzékenységi tartományban méri a teljesítményt; a metrika
+értéke $[0;\ 0{,}2]$ tartományba esik, ahol $0{,}2$ a tökéletes osztályozó
+értéke \cite{isic2024}.
+
+\paragraph{Kalibráció és Brier-pontszám.} A jó rangsorolás (magas AUC) nem
+garantálja, hogy a modell által kiadott valószínűségek megbízhatóak. A
+\textit{kalibráció} azt méri, hogy a becsült valószínűségek mennyire felelnek
+meg a tényleges bekövetkezési aránynak; Guo és munkatársai rámutattak, hogy a
+modern neurális hálók gyakran rosszul kalibráltak \cite{guo2017calibration}. A
+valószínűségi kimenetek minőségének egyik összegző mérőszáma a Brier-pontszám, a becsült valószínűség és a
+tényleges címke közötti átlagos négyzetes eltérés:
+
+\begin{equation}
+  \mathrm{Brier} = \frac{1}{N} \sum_{i=1}^{N} (p_i - y_i)^2,
+  \label{eq:brier}
+\end{equation}
+
+ahol $p_i$ a $i$-edik mintára becsült valószínűség, $y_i \in \{0,1\}$ a valódi
+címke; az alacsonyabb érték jobb kalibrációt jelez.
+
+% =============================================================================
+\section{Statisztikai elemzés}
+% =============================================================================
+
+Mivel a teszthalmazban a pozitív esetek száma korlátozott, a pontbecslések
+(érzékenység, specificitás, AUC) mellett azok bizonytalanságát is jelölni kell.
+Az arányjellegű metrikákhoz (érzékenység, specificitás) az egzakt, binomiális
+eloszláson alapuló Clopper--Pearson-féle konfidencia-intervallum ad megbízható
+becslést kis mintaszám esetén is. Az AUC esetében a DeLong-féle, nemparaméteres
+módszer szolgáltat konfidencia-intervallumot, illetve teszi lehetővé két modell
+AUC-értékének páros összehasonlítását; a módszer egy gyors, korszerű
+implementációját Sun és Xu adta meg \cite{sun2014delong}. E statisztikai eszközök
+biztosítják, hogy a modellek közötti különbségekről tett állítások ne csupán a
+mintavételi zaj következményei legyenek.
+
+% =============================================================================
+\section{Kommunikációs technológiák: SSE és az MCP}
+% =============================================================================
+
+A dolgozatban bemutatott rendszer valós idejű, token-szintű válaszközvetítést és
+egy nyelvi modellt kiszolgáló komponensekkel való kommunikációt igényel; ezt két
+technológia teszi lehetővé.
+
+\paragraph{Szerver-küldött események (SSE).} A szerver-küldött események
+(Server-Sent Events) a HTML szabvány részét képező, egyirányú, szerverről
+kliensre irányuló adatfolyam-mechanizmus egyetlen, tartós HTTP-kapcsolaton
+keresztül \cite{whatwg_sse}. Az SSE különösen alkalmas a nagy nyelvi modellek
+token-szintű, fokozatos válaszainak továbbítására, mivel a kliens a szöveget
+generálással egyidejűleg, darabonként jeleníti meg, jelentősen javítva a
+felhasználói élményt.
+
+\paragraph{Model Context Protocol (MCP).} A Model Context Protocol az Anthropic
+által 2024-ben közzétett nyílt szabvány, amely egységesíti a nagy nyelvi
+modellek és a külső eszközök, adatforrások közötti kommunikációt \cite{mcp2024}.
+Az MCP a JSON-RPC 2.0 üzenetformátumra épül \cite{jsonrpc2013}, és többféle
+átviteli réteget támogat, többek között a helyi folyamatok közötti szabványos
+be- és kimeneti (stdio) csatornát. A dolgozat rendszerében az MCP biztosítja a
+backend és a modellt kiszolgáló komponens közötti, jól strukturált
+kommunikációt; e megoldás részletes tárgyalása a mérnöki részben található.

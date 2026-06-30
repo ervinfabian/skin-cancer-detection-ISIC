@@ -1,0 +1,23 @@
+A bőrrák, és különösen a melanoma korai felismerés esetén jól kezelhető, késői
+stádiumban azonban romlik a túlélési esély; a bőrgyógyászati
+szakellátáshoz való hozzáférés ugyanakkor világszerte egyenetlen.
+Éppen ezért jelen dolgozat célja egy mély tanuláson alapuló mesterséges intelligencia modell,
+mely képes a bőrelváltozások kép alapú osztályozására, és az e köré épülő webböngészőben és
+mobileszközön elérhető, ,,bőrdaganat-szűrő'' rendszer bemutatása, amely a bőrléziók szakorvosi
+vizsgálatának indokoltságát jelzi.
+
+Osztályozóként transzfertanulással finomhangolt Vision Transformer (ViT) modellt
+használtunk, melyet az ISIC 2024-es adathalmazán tanítottunk, így alkalmassá vált
+nem-dermatoszkópos bőrlézió-felvételek klasszifikációjára. A modellt azonos feltételek
+mellett betanított ResNet-18 konvolúciós hálóval, az ISIC versenygyőztes EVA02 modelljével
+és Gemini 2.5 Flash nagy nyelvi modellel hasonlítottuk össze. 
+A finomhangolt ViT a teszthalmazon AUC $0{,}939$-et ért el, érdemben felülmúlva
+a konvolúciós alapot, és elérve az EVA02 szintjét.
+A betanított osztályozó modellt egy teljes alkalmazássá egészítettük ki: mobil- és webklienssel, a
+modellt kiszolgáló MCP-réteggel, a Gemini modellre épülő képvalidációval és
+természetes nyelvű magyarázattal, valamint hitelesített, felhasználónként
+elkülönített felhőalapú adattárolással.
+
+\textbf{Kulcsszavak}: bőrrák, melanoma, mély tanulás, Vision Transformer,
+transzfertanulás, ISIC 2024, nagy nyelvi modell, mobil
+egészségügy

@@ -89,7 +89,7 @@
                 android:textColor="@color/text_dim"
                 android:textSize="13sp"
                 android:lineSpacingMultiplier="1.5"
-                android:text="AI Classification — A Vision Transformer model trained on the ISIC 2024 dataset classifies the lesion as Benign or Malignant, with a confidence score." />
+                android:text="AI Classification — A Vision Transformer model trained on the ISIC 2024 dataset estimates whether the lesion is Benign or Malignant, with a confidence score, as a screening risk indication rather than a diagnosis." />
         </LinearLayout>
 
         <!-- Step 03 -->
@@ -156,7 +156,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="DermAI is an informational screening tool only — it does not replace professional medical examination or diagnosis. Never make a medical decision based solely on this application\'s output. If you have any concerns, consult a dermatologist."
+                android:text="DermAI is an informational screening tool only. Its output is a risk indication meant to support screening — it is not a diagnosis and does not replace professional medical examination. Never make a medical decision based solely on this application\'s output. If you have any concerns, consult a dermatologist."
                 android:textColor="@color/text_dim"
                 android:textSize="12sp"
                 android:lineSpacingMultiplier="1.5" />

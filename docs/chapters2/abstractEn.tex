@@ -1,0 +1,25 @@
+Skin cancer, and melanoma in particular, is highly treatable when detected
+early, but the chances of survival deteriorate at advanced stages; at the same
+time, access to specialist dermatological care is unevenly distributed worldwide.
+The aim of this thesis is therefore to present a deep-learning-based
+artificial-intelligence model capable of image-based classification of skin
+lesions, together with the ``skin-cancer screening'' system built around it,
+accessible both in a web browser and on mobile devices, which indicates the extent
+to which a specialist examination of a skin lesion is warranted.
+
+As the classifier we used a Vision Transformer (ViT) model fine-tuned with
+transfer learning, trained on the ISIC 2024 database, which made it suitable for
+classifying non-dermoscopic skin-lesion images. We compared the model with a
+ResNet-18 convolutional baseline trained under identical conditions, with the
+ISIC competition-winning EVA02 model, and with the Gemini 2.5 Flash large
+language model. On the test set the fine-tuned ViT reached an AUC of $0.939$,
+substantially outperforming the convolutional baseline and matching the level of
+EVA02.
+
+We extended the trained classifier model into a complete application, comprising
+mobile and web clients, an MCP layer serving the model, Gemini-based image
+validation and natural-language explanation, and authenticated, per-user cloud
+storage.
+
+\textbf{Keywords}: skin cancer, melanoma, deep learning, Vision Transformer,
+transfer learning, ISIC 2024, large language model, mobile health

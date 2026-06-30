@@ -1,0 +1,141 @@
+\documentclass[12pt, twosides]{report}
+
+\include{preamble}
+
+\title{
+	{\LARGE\bfseries Bőrelváltozások rosszindulatúságának osztályozása\\[0.3em]
+	Vision Transformer modellel és\\[0.3em]
+	számítástechnikai alkalmazása}\\[2em]
+	{\large Sapientia Erdélyi Magyar Tudományegyetem\\
+	Marosvásárhely}
+}
+\author{
+	{\large Szerző:} Fábián Ervin\\
+	\texttt{fabian.ervin@student.ms.sapientia.ro}\\[1.2em]
+	{\large Témavezető:} Iclănzan David Andrei\\
+	\texttt{iclanzan@ms.sapientia.ro}
+}
+\date{2026}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+% A hivatalos államvizsga-borító (kitöltés után) ezzel illeszthető be a \maketitle helyett:
+%\includepdf[pages={1,2,3}]{pdfs/allamvizsga_borito.pdf}
+
+% ---------------- Címlap (magyar) ----------------
+\begin{titlepage}
+\centering
+\linespread{1.25}\selectfont
+{\large\bfseries SAPIENTIA ERDÉLYI MAGYAR TUDOMÁNYEGYETEM\par}
+\vspace{0.4em}
+{\large MAROSVÁSÁRHELYI KAR\par}
+\vspace{0.4em}
+{\large SZÁMÍTÁSTECHNIKA SZAK\par}
+
+\vfill
+
+{\Large\bfseries BŐRELVÁLTOZÁSOK ROSSZINDULATÚSÁGÁNAK\\[0.35em]
+OSZTÁLYOZÁSA VISION TRANSFORMER MODELLEL\\[0.35em]
+ÉS SZÁMÍTÁSTECHNIKAI ALKALMAZÁSA\par}
+
+\vfill
+
+\noindent\begin{minipage}[t]{0.5\textwidth}
+\raggedright
+Vezetőtanár:\\
+Dr. Iclănzan David Andrei docens
+\end{minipage}%
+\begin{minipage}[t]{0.5\textwidth}
+\raggedleft
+Hallgató:\\
+Fábián Ervin
+\end{minipage}
+
+\vspace{1.6cm}
+
+{Marosvásárhely, 2026\par}
+\end{titlepage}
+
+% ---------------- Címlap (román) ----------------
+\begin{titlepage}
+\centering
+\linespread{1.25}\selectfont
+{\large\bfseries UNIVERSITATEA „SAPIENTIA” DIN CLUJ-NAPOCA\par}
+\vspace{0.4em}
+{\large FACULTATEA DE ȘTIINȚE TEHNICE ȘI UMANISTE, TÎRGU-MUREȘ\par}
+\vspace{0.4em}
+{\large SPECIALIZAREA CALCULATOARE\par}
+
+\vfill
+
+{\Large\bfseries CLASIFICAREA MALIGNITĂȚII LEZIUNILOR CUTANATE\\[0.35em]
+CU UN MODEL VISION TRANSFORMER\\[0.35em]
+ȘI APLICAREA SA INFORMATICĂ\par}
+
+\vfill
+
+\noindent\begin{minipage}[t]{0.5\textwidth}
+\raggedright
+Coordonator științific:\\
+Conf. Dr. Iclănzan David Andrei
+\end{minipage}%
+\begin{minipage}[t]{0.5\textwidth}
+\raggedleft
+Absolvent:\\
+Fábián Ervin
+\end{minipage}
+
+\vspace{1.6cm}
+
+{Târgu-Mureș, 2026\par}
+\end{titlepage}
+
+\pagenumbering{gobble}
+
+\includepdf[pages=-]{fisa_proiectului.pdf}
+
+\section*{Kivonat}
+\input{chapters2/abstractHu}
+\clearpage
+
+\section*{Abstract}
+\input{chapters2/abstractEn}
+\clearpage
+
+\section*{Abstract}
+\input{chapters2/abstractRo}
+\clearpage
+
+\tableofcontents
+
+\listoffigures
+
+\chapter{Bevezető} \label{chpt:intro}
+\pagenumbering{arabic}
+\input{chapters2/introduction}
+
+\chapter{Szakirodalmi áttekintés} \label{chpt:literature}
+\input{chapters2/literature}
+
+\chapter{Elméleti háttér} \label{chpt:theory}
+\input{chapters2/theory}
+
+\chapter{A bőrelváltozás-osztályozó modell fejlesztése és kiértékelése} \label{chpt:research}
+\input{chapters2/research}
+
+\chapter{A rendszer tervezése és megvalósítása} \label{chpt:engineering}
+\input{chapters2/engineering}
+
+\chapter{Összefoglalás és jövőbeli munka} \label{chpt:summary}
+\input{chapters2/summary}
+
+\addcontentsline{toc}{chapter}{Irodalomjegyzék}
+\bibliographystyle{ieeetr}
+\bibliography{References}
+
+\appendix
+\chapter{A mesterséges intelligencia használata}
+\input{chapters2/ai_usage}
+
+\end{document}
